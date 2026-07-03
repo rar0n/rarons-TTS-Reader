@@ -82,6 +82,7 @@ But you do need to load a voice model first:
   - "WavTokenizer model (Required for some models)"
   - "TTS Voice Dir" (only if you have custom voices, set folder/directory here)
   - Might also want to tick "Use GPU" if you have a suitable one.
+
   (For simplicity later, save the KoboldCpp config. Reload on next use).
 
 No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
@@ -101,6 +102,8 @@ Pretty self explanatory, but:
 
 
 ## How it works
+
+(This is just Claude explaining the inner workings, might be useful)
 
 - **`chunker.py`** splits the input text into small chunks at sentence and
   clause boundaries (periods, commas, semicolons, colons, em/en-dashes),
