@@ -23,6 +23,9 @@ So KoboldCpp only gets one sentence at a time, which works much better.
    your system memory I think, as the app gets the audio continuously ahead
    of the speech, unless it's inferencing speech slower than real-time )
 
+ Oh, btw #2 - The thing is 99% vibe coded with Claude Sonnet 5
+ (free tier over a few sessions. So that's awesome imho).
+
     2026 raron ( But mostly Claude :) )
 
 
@@ -41,7 +44,8 @@ So KoboldCpp only gets one sentence at a time, which works much better.
 
 1. In KoboldCpp: **Settings → Media → Text To Speech →
    "OpenAI-Compat. API Server"** (load a TTS model first, e.g. Qwen3TTS).
-2. Install dependencies into a venv (virtual environment):
+2. Save the TTS Reader in a folder, `cd to that folder` and install dependencies
+   into a venv (virtual environment):
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
