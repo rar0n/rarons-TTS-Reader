@@ -56,8 +56,8 @@ So KoboldCpp only gets one sentence at a time, which works much better.
    from the dropdown (hit ⟳ to (re)fetch the list from KoboldCpp), paste in
    some text, and hit **▶ Play**.
 
-   If leaving the voice field empty or `default`/`random` — that's KoboldCpp's
-   random speaker, which is why it was switching voices after each sentence.
+   If leaving the voice field empty (or `default`), KoboldCpp will just
+   pick a random speaker for each sentence. Might not be what you want.
    Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
 
 
