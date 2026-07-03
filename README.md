@@ -16,9 +16,12 @@ sessions (which is awesome btw, so thanks to Anthropic for that!).
 
 So KoboldCpp only gets one sentence at a time, which works much better.
 
- ( Btw, I have no idea exactly - how - long a text it can take, depends on  )
- ( your system memory I think, as the app gets the audio continuously ahead )
- ( of the speech, unless it's inferencing speech slower than real-time       )
+ ( Btw I have no idea exactly - how - long a text it can take, depends on
+   your system memory I think, as the app gets the audio continuously ahead
+   of the speech, unless it's inferencing speech slower than real-time )
+
+ Oh, btw #2 - The thing is 99% vibe coded with Claude Sonnet 5
+ (free tier over a few sessions. So that's awesome imho).
 
     2026 raron ( But mostly Claude :) )
 
