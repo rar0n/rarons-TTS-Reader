@@ -44,7 +44,7 @@ So KoboldCpp only gets one sentence at a time, which works much better.
 
 1. In KoboldCpp: **Settings → Media → Text To Speech →
    "OpenAI-Compat. API Server"** (load a TTS model first, e.g. Qwen3TTS).
-2. Save the TTS Reader in a folder, `cd to that folder` and install dependencies
+2. Save/extract the TTS Reader into a folder, `cd to that folder` and install dependencies
    into a venv (virtual environment):
    ```bash
    python3 -m venv .venv
