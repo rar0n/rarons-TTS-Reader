@@ -7,6 +7,8 @@ A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting one sentence at a time, better pauses
 (hopefully), and basic Play, Pause/Resume, Rwd/Fwd and Stop controls.
 
+<img width="820" height="628" alt="Screenshot from 2026-07-03 21-51-40" src="https://github.com/user-attachments/assets/6b631e4e-a7be-4634-9d68-0f1173aefbb5" />
+
 There's no "continue from selection" function, for now just
 delete the preceding text in the textbox if need be after a stop.
 
