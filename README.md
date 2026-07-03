@@ -1,6 +1,5 @@
 <img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/fe5b4704-ae92-4d6e-837b-6f769db4a6ce" />
 
-
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around KoboldCpp's tendency to drift in voice/speed
@@ -23,8 +22,6 @@ So KoboldCpp only gets one sentence at a time, which works much better.
    your system memory I think, as the app gets the audio continuously ahead
    of the speech, unless it's inferencing speech slower than real-time )
 
- Oh, btw #2 - The thing is 99% vibe coded with Claude Sonnet 5
- (free tier over a few sessions. So that's awesome imho).
 
     2026 raron ( But mostly Claude :) )
 
