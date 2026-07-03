@@ -79,7 +79,7 @@ class SpeakerFetchWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("TTS Reader (KoboldCpp)")
+        self.setWindowTitle("rarons TTS Reader v0.2 (via KoboldCp)")
         self.resize(820, 600)
 
         self.chunks: list[Chunk] = []
