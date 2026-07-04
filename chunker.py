@@ -2,10 +2,10 @@
 Splits arbitrary text into small, speakable chunks for TTS.
 
 Why this exists: feeding a whole paragraph to KoboldCpp's TTS in one request
-is what causes voice drift, speed changes, and mid-paragraph cutoffs on long
-inputs. Splitting at sentence/clause boundaries and re-inserting silence
-ourselves (rather than relying on the model to imply a pause) fixes both
-problems and gives us natural points to highlight, pause, and rewind.
+cause voice drift, speed changes, and cutoffs on long inputs.
+Splitting at sentence/clause boundaries and re-inserting silence ourselves
+(rather than relying on the model to imply a pause) fixes these problems,
+gives us better control over speech pauses, and easy rewind/forward control.
 
 Plain-text-specific handling on top of that:
 
@@ -23,6 +23,27 @@ Plain-text-specific handling on top of that:
     very long stretch (100+ words -- think a giant unpunctuated pasted
     paragraph) gets force-split near its midpoint on a word boundary, so
     we never hand KoboldCpp one enormous request.
+  - Runs of spaces/tabs collapse to a single space, and a leading/trailing
+    one on a wrapped line (i.e. indentation) is dropped entirely -- the
+    newline-to-space normalization above already supplies the separator.
+  - Runs of the same punctuation mark collapse to a single mark (e.g.
+    "......" or ",,,,,,,,"), *except* runs that match a recognized
+    narrative-emphasis pattern -- an ellipsis ("...") or a doubled/tripled
+    "!"/"?" -- which are left alone since they're probably intentional.
+  - If the first word after a single-newline wrap starts with a capital
+    letter, it's treated as a new sentence even though the wrapped line
+    didn't end in punctuation. This is a deliberately simple heuristic --
+    it'll occasionally misfire on a line-leading capitalized name -- traded
+    off against correctly catching the much more common case of prose that
+    got hard-wrapped without care for where sentences end.
+  - An http(s) URL is matched as one atomic token instead of being torn
+    apart by the punctuation/word rules above. Any enclosing "<" "/" ">"
+    (the classic "<https://example.com>" plain-text convention) are
+    dropped, and "." within the URL is spelled out as " dot " so it reads
+    naturally and doesn't get mistaken for a sentence end. A trailing
+    sentence-punctuation character right after a URL (the period in
+    "...see https://example.com.") is left for the normal tokenizer to
+    handle as its own token, not swallowed into the URL.
 
 Because the text sent to the TTS engine is now a *normalized* version of
 the source (newlines swapped for spaces, hyphens removed, etc.), a chunk
@@ -52,6 +73,12 @@ PAUSE_MAP = {
 }
 DEFAULT_PAUSE_MS = 200
 
+# Pause used when we infer a sentence break from a capitalized word right
+# after a single-newline wrap, even though there was no actual sentence-
+# ending punctuation there. Same weight as a normal sentence-ender since
+# that's what we're asserting it functionally is.
+IMPLIED_SENTENCE_PAUSE_MS = PAUSE_MAP["."]
+
 # Pause after a paragraph break (2+ consecutive newlines) -- a bit longer
 # than a plain sentence-ender, since it's a bigger structural break.
 PARAGRAPH_PAUSE_MS = 600
@@ -75,6 +102,17 @@ ABBREVIATIONS = {
     "vs.", "etc.", "e.g.", "i.e.", "no.", "vol.", "approx.", "ave.",
 }
 
+# Consecutive-punctuation run lengths that are treated as deliberate
+# narrative emphasis rather than accidental repetition, and therefore kept
+# as-is instead of being collapsed down to one mark. Anything not listed
+# here (a run of 4+ exclamation points, two periods, eight commas, ...)
+# collapses to a single instance of the mark.
+NARRATIVE_PUNCT_RUN_LENGTHS = {
+    ".": {3},        # ellipsis: "..."
+    "!": {2, 3},      # "!!" / "!!!"
+    "?": {2, 3},      # "??" / "???"
+}
+
 # Tokenizes the source text into: paragraph breaks, soft-hyphen line-wrap
 # joins, plain single newlines, clause/sentence punctuation, and runs of
 # ordinary text. Alternatives are tried in this order at each position, so
@@ -84,16 +122,20 @@ _TOKEN_RE = re.compile(
     r"(?P<parabreak>\n[ \t]*\n[ \t\n]*)"
     r"|(?P<hyphenjoin>-\n(?=\w))"
     r"|(?P<linebreak>\n)"
+    # http(s) URL, optionally wrapped in <...> (the common plain-text
+    # convention). Tried before punct/word so a URL's internal ":" "/" "."
+    # never get carved up as ordinary sentence punctuation. The trailing
+    # character class excludes common sentence punctuation/brackets so a
+    # real sentence-ender or closing paren right after the URL is left for
+    # the normal tokenizer to pick up instead of being swallowed here.
+    r"|(?P<url><?(?:https?://)[^\s<>]*[^\s<>.,;:!?)\]]>?)"
     r"|(?P<punct>[,;:.!?\u2014\u2013])"
     # A run of ordinary characters -- but each step first checks it isn't
-    # about to walk into a "-\n<word char>" wrap, so that sequence gets
-    # left for the hyphenjoin alternative above instead of being eaten
-    # here as a literal trailing hyphen.
-    r"|(?P<word>(?:(?!-\n\w)[^\n,;:.!?\u2014\u2013])+)"
+    # about to walk into a "-\n<word char>" wrap (left for hyphenjoin) or
+    # the start of a URL (left for the url alternative above), so those
+    # don't get eaten here as plain word characters.
+    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)[^\n,;:.!?\u2014\u2013])+)"
 )
-
-# Strip multiple internal whitespaces
-_MULTI_SPACE_RE = re.compile(r" {2,}")
 
 
 @dataclass
@@ -155,31 +197,150 @@ class _Builder:
         )
 
 
-def _tokenize(text: str):
-    """Yield raw (pre-merge, pre-long-split) Chunks from source text."""
+def _normalize_word(raw: str) -> str:
+    """Collapse runs of spaces/tabs in a matched `word` token down to a
+    single space, then drop a leading or trailing one entirely.
+
+    Inter-token spacing is already handled separately by `pending_glue`
+    (set from punctuation and single-newline handling), so a leftover
+    leading/trailing space here would just double it up. This is also what
+    makes line-leading indentation disappear: spaces/tabs before the first
+    real word of a wrapped line always land at the start of a `word` token
+    (indentation right after a *paragraph* break is discarded even
+    earlier, by `_TOKEN_RE`'s parabreak alternative itself)."""
+    return re.sub(r"[ \t]+", " ", raw).strip(" ")
+
+
+def _collapse_punct_run(char: str, count: int) -> str:
+    """Decide what to actually send to the TTS engine for `count`
+    consecutive copies of `char` found in the source text."""
+    if count in NARRATIVE_PUNCT_RUN_LENGTHS.get(char, ()):
+        return char * count
+    return char
+
+
+def _humanize_url(raw: str) -> str:
+    """Strip a matched URL's enclosing <...> wrapper (if present) and
+    spell out "." as " dot " so KoboldCpp reads a domain like "fsf.org" as
+    "fsf dot org" instead of pausing on it like a sentence end."""
+    core = raw
+    if core.startswith("<"):
+        core = core[1:]
+    if core.endswith(">"):
+        core = core[:-1]
+    return re.sub(r"\s+", " ", core.replace(".", " dot ")).strip()
+
+
+def _tokenize(text: str) -> List[Chunk]:
+    """Return raw (pre-merge, pre-long-split) Chunks from source text, in
+    reading order."""
+    chunks: List[Chunk] = []
     builder = _Builder()
     pending_glue = ""
+    pending_punct: Optional[dict] = None
+    just_had_linebreak = False  # True right after a single (non-paragraph) \n
+
+    def flush_punct() -> None:
+        """Close out whatever punctuation run is in progress, if any,
+        collapsing it to a single chunk-ending token."""
+        nonlocal builder, pending_glue, pending_punct
+        if pending_punct is None:
+            return
+        text_out = _collapse_punct_run(pending_punct["char"], pending_punct["count"])
+        builder.add(text_out, pending_punct["start"], pending_punct["end"], pending_glue)
+        chunks.append(builder.build(PAUSE_MAP.get(pending_punct["char"], DEFAULT_PAUSE_MS)))
+        builder = _Builder()
+        pending_glue = ""
+        pending_punct = None
+
     for m in _TOKEN_RE.finditer(text):
         kind = m.lastgroup
+
+        if kind == "punct":
+            ch = m.group()
+            if (
+                pending_punct is not None
+                and pending_punct["char"] == ch
+                and pending_punct["end"] == m.start()
+            ):
+                # Same mark, immediately contiguous with the run so far --
+                # extend it rather than closing a chunk for every copy.
+                pending_punct["end"] = m.end()
+                pending_punct["count"] += 1
+            else:
+                flush_punct()
+                pending_punct = {"char": ch, "start": m.start(), "end": m.end(), "count": 1}
+            just_had_linebreak = False
+            continue
+
+        # Any non-punct token means a punctuation run (if any) is over.
+        flush_punct()
+
         if kind == "parabreak":
             if not builder.is_empty():
-                yield builder.build(PARAGRAPH_PAUSE_MS)
+                chunks.append(builder.build(PARAGRAPH_PAUSE_MS))
                 builder = _Builder()
+            elif chunks:
+                # The chunk that would have carried this pause was already
+                # closed out (e.g. by a preceding "." or punctuation run) --
+                # upgrade its pause instead of silently losing the longer,
+                # paragraph-break pause.
+                chunks[-1].pause_ms = max(chunks[-1].pause_ms, PARAGRAPH_PAUSE_MS)
             pending_glue = ""
+            just_had_linebreak = False
         elif kind == "hyphenjoin":
             pending_glue = ""  # next word glues directly onto this one, no space
+            just_had_linebreak = False
         elif kind == "linebreak":
             pending_glue = " "  # a single newline just becomes a word-space
-        elif kind == "punct":
-            builder.add(m.group(), m.start(), m.end(), pending_glue)
-            yield builder.build(PAUSE_MAP.get(m.group(), DEFAULT_PAUSE_MS))
-            builder = _Builder()
+            just_had_linebreak = True
+        elif kind == "url":
+            humanized = _humanize_url(m.group())
+            if not humanized:
+                continue
+            builder.add(humanized, m.start(), m.end(), pending_glue)
             pending_glue = ""
+            just_had_linebreak = False
         elif kind == "word":
-            builder.add(m.group(), m.start(), m.end(), pending_glue)
-            pending_glue = ""
+            raw_word = m.group()
+            leading_ws = raw_word[:1] in (" ", "\t")
+            trailing_ws = raw_word[-1:] in (" ", "\t")
+            normalized = _normalize_word(raw_word)
+            if not normalized:
+                # Pure whitespace (only possible wedged between punctuation
+                # and a following newline) -- nothing to add, and whatever
+                # comes right after (always punctuation or a newline in
+                # this case) sets the glue itself.
+                continue
+            # Normally pending_glue already carries the right separator
+            # (from punctuation or a newline). But a word token can now
+            # also sit directly next to a url token with nothing between
+            # them, in which case pending_glue is empty and this word's own
+            # leading whitespace (stripped out by _normalize_word) is the
+            # only place that separator ever existed -- so fall back to it.
+            glue = pending_glue or (" " if leading_ws else "")
+            if (
+                just_had_linebreak
+                and not builder.is_empty()
+                and normalized[0].isupper()
+            ):
+                # Capitalized word right after a line wrap: treat it as an
+                # implied sentence break even without real punctuation.
+                chunks.append(builder.build(IMPLIED_SENTENCE_PAUSE_MS))
+                builder = _Builder()
+                glue = ""  # fresh chunk -- no leading space wanted regardless
+            builder.add(normalized, m.start(), m.end(), glue)
+            # Same idea in reverse: hand off this word's own trailing
+            # whitespace as glue for whatever comes next, since nothing
+            # else will if the next token is a url with no punctuation or
+            # newline in between.
+            pending_glue = " " if trailing_ws else ""
+            just_had_linebreak = False
+
+    flush_punct()
     if not builder.is_empty():
-        yield builder.build(DEFAULT_PAUSE_MS)
+        chunks.append(builder.build(DEFAULT_PAUSE_MS))
+    return chunks
 
 
 def _strip_chunk(chunk: Chunk) -> Chunk:
@@ -204,56 +365,19 @@ def _strip_chunk(chunk: Chunk) -> Chunk:
     return Chunk(text=stripped, spans=out_spans, pause_ms=chunk.pause_ms, text_ranges=out_ranges)
 
 
-
-def _remove_range(text, spans, ranges, drop_start, drop_end):
-    """Remove text[drop_start:drop_end], re-basing text_ranges and shrinking
-    any (span, range) pair that overlaps the removed region."""
-    drop_len = drop_end - drop_start
-    new_text = text[:drop_start] + text[drop_end:]
-
-    def remap(pos):
-        # Positions inside the dropped region collapse onto drop_start;
-        # positions after it shift left by drop_len; positions before it
-        # are untouched.
-        return pos - max(0, min(pos, drop_end) - drop_start)
-
-    out_spans, out_ranges = [], []
-    for (s, e), (ts, te) in zip(spans, ranges):
-        overlap = max(0, min(te, drop_end) - max(ts, drop_start))
-        if overlap >= te - ts:
-            continue  # range was entirely inside the dropped region
-        out_spans.append((s, e - overlap))
-        out_ranges.append((remap(ts), remap(te)))
-
-    return new_text, out_spans, out_ranges
-
-
-def _collapse_internal_spaces(chunk: Chunk) -> Chunk:
-    """Collapse runs of 2+ interior spaces down to a single space, keeping
-    spans/text_ranges in sync. Only literal spaces are touched -- tabs and
-    newlines aren't, since the tokenizer already breaks on those elsewhere.
-    """
-    text = chunk.text
-    matches = list(_MULTI_SPACE_RE.finditer(text))
-    if not matches:
-        return chunk
-
-    # Keep the first space of each run, drop the rest.
-    drops = [(m.start() + 1, m.end()) for m in matches]
-
-    spans, ranges = list(chunk.spans), list(chunk.text_ranges)
-    # Right-to-left so earlier drop indices stay valid as we mutate text.
-    for drop_start, drop_end in reversed(drops):
-        text, spans, ranges = _remove_range(text, spans, ranges, drop_start, drop_end)
-
-    return Chunk(text=text, spans=spans, pause_ms=chunk.pause_ms, text_ranges=ranges)
-
-
-
-
 def _merge_short_and_abbrev(chunks: List[Chunk]) -> List[Chunk]:
     """Merge runs of short fragments (and abbreviation-truncated ones)
-    forward into the next chunk, same behavior as before."""
+    forward into the next chunk, same behavior as before -- except a short
+    chunk of *real content* that already carries a paragraph-level pause
+    is left alone. That pause is deliberate (e.g. a standalone heading/
+    title line followed by a blank line), not the "lone short utterance
+    sounds choppy" problem this merge exists to fix, and merging would
+    drag the pause away from right after the heading to wherever the
+    *next* chunk happens to end. "Real content" (at least one letter or
+    digit) is the key qualifier -- a lone stray punctuation mark that
+    happens to have inherited a paragraph pause (see _tokenize's parabreak
+    handling) should still merge forward rather than get sent to the TTS
+    engine as a standalone one-character utterance."""
     merged: List[Chunk] = []
     buffer: Optional[Chunk] = None
     for c in chunks:
@@ -262,12 +386,22 @@ def _merge_short_and_abbrev(chunks: List[Chunk]) -> List[Chunk]:
             continue
         words = buffer.text.split()
         last_word = words[-1].lower() if words else ""
-        if len(buffer.text) < MIN_CHUNK_CHARS or last_word in ABBREVIATIONS:
+        is_short_or_abbrev = len(buffer.text) < MIN_CHUNK_CHARS or last_word in ABBREVIATIONS
+        protect_pause = (
+            buffer.pause_ms >= PARAGRAPH_PAUSE_MS
+            and any(ch.isalnum() for ch in buffer.text)
+        )
+        if is_short_or_abbrev and not protect_pause:
             offset = len(buffer.text) + 1  # +1 for the joining space below
             buffer = Chunk(
                 text=f"{buffer.text} {c.text}",
                 spans=buffer.spans + c.spans,
-                pause_ms=c.pause_ms,
+                # Normally c's own pause wins (that's where the merged chunk
+                # actually ends) -- but take whichever is longer so a short
+                # fragment carrying an upgraded paragraph-break pause (e.g. a
+                # lone trailing quote mark right before a paragraph break)
+                # doesn't just vanish into a shorter comma/word pause.
+                pause_ms=max(buffer.pause_ms, c.pause_ms),
                 text_ranges=buffer.text_ranges + [(ts + offset, te + offset) for ts, te in c.text_ranges],
             )
         else:
@@ -315,13 +449,36 @@ def _split_if_long(chunk: Chunk, word_limit: int = LONG_CHUNK_WORD_LIMIT) -> Lis
 
 def chunk_text(text: str) -> List[Chunk]:
     """Split `text` into a list of Chunk objects in reading order."""
-    raw = ( _collapse_internal_spaces( _strip_chunk(c) ) for c in _tokenize(text))
-    #raw = (_strip_chunk(c) for c in _tokenize(text))
+    raw = (_strip_chunk(c) for c in _tokenize(text))
     raw = [c for c in raw if c.text]
     merged = _merge_short_and_abbrev(raw)
     final: List[Chunk] = []
     for c in merged:
         final.extend(_split_if_long(c))
+
+    # `_merge_short_and_abbrev` only merges short fragments *forward* into
+    # the next chunk, so a too-short final chunk has nothing to merge into
+    # and slips through as its own tiny chunk. Fold it backward instead --
+    # unless the previous chunk is real content ending on a deliberate
+    # paragraph pause, in which case leave it alone for the same reason as
+    # above. Done here, after the long-chunk splitting above, so the
+    # merged result never gets force-split again even if it now runs a bit
+    # over LONG_CHUNK_WORD_LIMIT -- that's fine, it won't be by much.
+    if len(final) >= 2 and len(final[-1].text) < MIN_CHUNK_CHARS:
+        prev_protected = (
+            final[-2].pause_ms >= PARAGRAPH_PAUSE_MS
+            and any(ch.isalnum() for ch in final[-2].text)
+        )
+        if not prev_protected:
+            last = final.pop()
+            prev = final[-1]
+            offset = len(prev.text) + 1  # +1 for the joining space below
+            final[-1] = Chunk(
+                text=f"{prev.text} {last.text}",
+                spans=prev.spans + last.spans,
+                pause_ms=last.pause_ms,
+                text_ranges=prev.text_ranges + [(ts + offset, te + offset) for ts, te in last.text_ranges],
+            )
     return final
 
 

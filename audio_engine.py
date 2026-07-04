@@ -8,6 +8,11 @@ Plays a sequence of already-synthesized WAV chunks back to back, with:
   - tolerance for audio that isn't synthesized yet (it'll wait and poll,
     so playback can start as soon as chunk 0 is ready instead of waiting
     for the whole text to be synthesized)
+  - an on_error callback fired if a chunk's audio never shows up in time,
+    or if the output device can't be opened after several attempts --
+    both cases stop playback, but previously did so completely silently,
+    which looked indistinguishable from a genuine hang from the caller's
+    side (nothing else ever told it playback had stopped).
 
 This intentionally avoids gluing chunks into one long audio stream --
 keeping them separate is what makes "go back one sentence" trivial.
@@ -46,8 +51,13 @@ _DEFAULT_SAMPLERATE = 24000
 _DEFAULT_CHANNELS = 1
 
 _WRITE_BLOCK_SECONDS = 0.05  # ~50ms blocks -- keeps pause/stop latency low
-_SYNTH_WAIT_TIMEOUT = 30.0   # give up on a chunk that never gets synthesized
+# Give up on a chunk that never gets synthesized. Kept comfortably above
+# tts_client's own default request timeout (60s) so we don't give up on a
+# chunk while its HTTP request is still legitimately in flight -- if you
+# change KoboldTTSClient's timeout, keep this one bigger than it.
+_SYNTH_WAIT_TIMEOUT = 75.0
 _STREAM_RETRY_DELAY = 0.3    # backoff between failed attempts to (re)open the device
+_MAX_STREAM_OPEN_ATTEMPTS = 20  # ~6s of retries before giving up and reporting an error
 
 
 class PlaybackState:
@@ -60,10 +70,12 @@ class AudioEngine:
     def __init__(self,
                  on_chunk_start: Optional[Callable[[int], None]] = None,
                  on_chunk_end: Optional[Callable[[int], None]] = None,
-                 on_finished: Optional[Callable[[], None]] = None):
+                 on_finished: Optional[Callable[[], None]] = None,
+                 on_error: Optional[Callable[[int, str], None]] = None):
         self.on_chunk_start = on_chunk_start
         self.on_chunk_end = on_chunk_end
         self.on_finished = on_finished
+        self.on_error = on_error
 
         self._lock = threading.Lock()
         self._chunks: List[Chunk] = []
@@ -77,6 +89,8 @@ class AudioEngine:
 
         self._stream: Optional[sd.OutputStream] = None
         self._stream_format: Optional[Tuple[int, int]] = None
+        self._stream_fail_gen: Optional[int] = None
+        self._stream_fail_count = 0
 
         self._wake = threading.Event()
         self._shutdown = False
@@ -222,20 +236,27 @@ class AudioEngine:
             except Exception:
                 pass
 
-    def _wait_for_chunk_audio(self, idx: int, gen: int) -> Optional[np.ndarray]:
+    def _wait_for_chunk_audio(self, idx: int, gen: int) -> Tuple[Optional[np.ndarray], bool]:
+        """Poll for chunk `idx`'s audio. Returns (data, timed_out).
+
+        `data` is None either because some other transport call took over
+        (a normal, silent cancellation -- nothing to report) or because
+        synthesis never showed up within _SYNTH_WAIT_TIMEOUT (an actual
+        stall). `timed_out` tells the caller which case it was, so a real
+        stall can be surfaced instead of just going quiet."""
         start = time.monotonic()
         while True:
             with self._lock:
                 if gen != self._generation or self._state != PlaybackState.PLAYING:
-                    return None
+                    return None, False
                 data = self._audio.get(idx)
             if data is not None:
-                return data
+                return data, False
             if time.monotonic() - start > _SYNTH_WAIT_TIMEOUT:
                 with self._lock:
                     if gen == self._generation:
                         self._state = PlaybackState.STOPPED
-                return None
+                return None, True
             self._wake.wait(timeout=0.05)
             self._wake.clear()
 
@@ -293,18 +314,37 @@ class AudioEngine:
                 self._events.put_nowait(("finished", None, gen))
                 continue
 
-            data = self._wait_for_chunk_audio(idx, gen)
+            data, timed_out = self._wait_for_chunk_audio(idx, gen)
+            if timed_out:
+                self._events.put_nowait((
+                    "error", (idx, "Timed out waiting for chunk audio"), gen
+                ))
+            if data is None:
+                continue
             with self._lock:
                 still_current = gen == self._generation and self._state == PlaybackState.PLAYING
-            if data is None or not still_current:
+            if not still_current:
                 continue
 
             with self._lock:
                 samplerate = self._samplerate
             channels = data.shape[1]
             if not self._ensure_stream(samplerate, channels):
+                if self._stream_fail_gen != gen:
+                    self._stream_fail_gen = gen
+                    self._stream_fail_count = 0
+                self._stream_fail_count += 1
+                if self._stream_fail_count > _MAX_STREAM_OPEN_ATTEMPTS:
+                    with self._lock:
+                        if gen == self._generation:
+                            self._state = PlaybackState.STOPPED
+                    self._events.put_nowait((
+                        "error", (idx, "Could not open audio output device"), gen
+                    ))
+                    continue
                 time.sleep(_STREAM_RETRY_DELAY)
                 continue
+            self._stream_fail_count = 0
 
             self._events.put_nowait(("chunk_start", idx, gen))
 
@@ -354,3 +394,5 @@ class AudioEngine:
                 self.on_chunk_end(payload)
             elif kind == "finished" and self.on_finished:
                 self.on_finished()
+            elif kind == "error" and self.on_error:
+                self.on_error(*payload)
