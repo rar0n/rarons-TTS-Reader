@@ -38,7 +38,7 @@ So KoboldCpp only gets one sentence at a time, which works much better.
   That's all.
 
 
-## Setup
+## Setup / Install
 
 1. In KoboldCpp: **Settings → Media → Text To Speech →
    "OpenAI-Compat. API Server"** (load a TTS model first, e.g. Qwen3TTS).
@@ -195,4 +195,4 @@ Pretty self explanatory, but:
 
 ## Version history
 
-  2026.07.03 rarons TTS Reader v0.2 (let's say) - raron / Claude Sonnet 5
+  2026.07.04 rarons TTS Reader v0.25 (let's say) - raron / Claude Sonnet 5
