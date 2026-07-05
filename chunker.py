@@ -1,7 +1,7 @@
 """
 Splits arbitrary text into small, speakable chunks for TTS.
 
-Why this exists: feeding a whole paragraph to KoboldCpp's TTS in one request
+Why this exists: feeding a longer text to KoboldCpp's TTS in one request
 cause voice drift, speed changes, and cutoffs on long inputs.
 Splitting at sentence/clause boundaries and re-inserting silence ourselves
 (rather than relying on the model to imply a pause) fixes these problems,

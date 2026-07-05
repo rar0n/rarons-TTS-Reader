@@ -210,6 +210,58 @@ class AudioEngine:
         with self._lock:
             return self._index
 
+    # ---- status / export helpers -----------------------------------------
+
+    def get_audio_memory_bytes(self) -> int:
+        """Total size (bytes) of decoded audio currently held in memory for
+        this session -- grows as synthesis completes, resets on set_chunks."""
+        with self._lock:
+            return sum(a.nbytes for a in self._audio.values())
+
+    def get_progress_snapshot(self) -> Tuple[int, int, int, List[Optional[float]]]:
+        """Returns (index, frame_pos, samplerate, durations).
+
+        `durations` is aligned to the current chunk list: durations[i] is
+        the audio-only length (seconds) of chunk i if it's been synthesized
+        yet, else None. Callers can add each chunk's own pause_ms (which
+        they already have from the Chunk objects) to get the full per-chunk
+        timeline, and use frame_pos/samplerate for how far into the current
+        chunk playback has gotten."""
+        with self._lock:
+            durations: List[Optional[float]] = []
+            for i in range(len(self._chunks)):
+                data = self._audio.get(i)
+                durations.append((len(data) / self._samplerate) if data is not None else None)
+            return self._index, self._frame_pos, self._samplerate, durations
+
+    def is_fully_synthesized(self) -> bool:
+        with self._lock:
+            if not self._chunks:
+                return False
+            return all(i in self._audio for i in range(len(self._chunks)))
+
+    def render_full_audio(self) -> Optional[Tuple[np.ndarray, int]]:
+        """Concatenate every chunk's synthesized audio, in order, with the
+        same inter-chunk silence gaps used during playback, for saving to a
+        file. Returns (samples, samplerate), or None if some chunk hasn't
+        been synthesized yet (e.g. still in progress, or it errored out)."""
+        with self._lock:
+            if not self._chunks or not all(i in self._audio for i in range(len(self._chunks))):
+                return None
+            samplerate = self._samplerate
+            parts = []
+            n = len(self._chunks)
+            for i in range(n):
+                data = self._audio[i]
+                parts.append(data)
+                pause_ms = self._chunks[i].pause_ms
+                if pause_ms > 0 and i < n - 1:
+                    channels = data.shape[1]
+                    silence = np.zeros((int(pause_ms / 1000.0 * samplerate), channels), dtype=data.dtype)
+                    parts.append(silence)
+            combined = np.concatenate(parts, axis=0)
+            return combined, samplerate
+
     # ---- feeder thread: owns the stream and pushes audio into it --------
 
     def _ensure_stream(self, samplerate: int, channels: int) -> bool:

@@ -3,3 +3,7 @@ requests
 sounddevice
 soundfile
 numpy
+
+# Optional: only needed for the "Save Audio" button's MP3 export.
+# Without it, saving still works fine as WAV.
+lameenc
