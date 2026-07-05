@@ -1,6 +1,5 @@
 <img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/3b4198d4-cd6c-460b-a4f7-67359c8729a0" />
 
-
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around KoboldCpp's tendency to drift in voice/speed
@@ -11,85 +10,86 @@ TTS API, with live highlighting one sentence at a time, better pauses
 (hopefully), and basic Play, Pause/Resume, Rwd/Fwd and Stop controls.
 
 There's no "continue from selection" function, for now just
-delete the preceding text in the textbox if need be after a stop.
+delete the preceding text in the textbox if need be after a full stop.
 
-As I found KoboldCpp TTS flunked out on longer-form text, I vibe-coded this
+## Vibe coded
+
+Full disclosure, I don't know Python that well. Claude does though.
+As I found KoboldCpp TTS flunked out on longer-form text I vibe-coded this
 with Claude Sonnet 5 on Extra / High  and Medium effort, over a few free
 sessions (which is awesome btw, so thanks to Anthropic for that!).
 
 So KoboldCpp only gets one sentence at a time, which works much better.
 
- ( Btw I have no idea exactly - how - long a text it can take, depends on
-   your system memory I think, as the app gets the audio continuously ahead
-   of the speech, unless it's inferencing speech slower than real-time )
+(Might be due to not setting enough context memory, but at least this way
+that's pretty much not a concern almost regardless of lenght - I think)
+
+One caveat is if your system renders speech slower than real-time, there
+will be longer pauses between sentences. You can just wait it out and
+save as wav or mp3 for later listen though.
+(just press Start, then Pause, wait, and save it).
 
 
     2026 raron ( But mostly Claude :) )
 
 
-## License
+## Links
 
-  Basically, there's no license.
-  If you use it somewhere or improve it, I would appreciate a mention,
-  but you don't have to.
+KoboldCpp:
+https://github.com/LostRuins/koboldcpp
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+TTS models for narration (as also linked from KoboldCpp's page above:
+https://huggingface.co/koboldcpp/tts/tree/main
 
-  Use at your own risk, modify as you see fit.
+Me I've so far only tried, and use:
+ - Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf  (Can also do voice cloning)
+   https://huggingface.co/koboldcpp/tts/blob/main/Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf
+ - qwen3-tts-tokenizer-q8_0.gguf
+   https://huggingface.co/koboldcpp/tts/blob/main/qwen3-tts-tokenizer-q8_0.gguf
 
-  That's all.
+Other TTS models should work as well though.
 
 
-## Setup / Install
+## Install
 
-1. In KoboldCpp: **Settings → Media → Text To Speech →
-   "OpenAI-Compat. API Server"** (load a TTS model first, e.g. Qwen3TTS).
-2. Save/extract the TTS Reader into a folder, `cd to that folder` and install dependencies
-   into a venv (virtual environment):
+1. Save/extract TTS Reader into a folder, `cd to that folder` or just
+   right-click the folder and select "Open in Terminal" (Linux).
+2. Install dependencies into a venv (virtual environment):
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
    (On Linux you may also need the PortAudio runtime: `sudo apt install libportaudio2`)
-3. Run it:
-   ```bash
-   python main.py
-   ```
-4. Set the KoboldCpp URL (default `http://127.0.0.1:5001`), pick a voice
-   from the dropdown (hit ⟳ to (re)fetch the list from KoboldCpp), paste in
-   some text, and hit **▶ Play**.
-
-   If leaving the voice field empty (or `default`), KoboldCpp will just
-   pick a random speaker for each sentence. Might not be what you want.
-   Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
 
 
 ## Usage:
 
-  1. Run KoboldCpp in terminal / CLI from its folder (easier to exit by ctrl-C).
-     In KoboldCpp: Settings -> Media -> Text To Speech ->
-       "OpenAI-Compat. API Server" (load Qwen3TTS or whichever model first).
-  2. Run python3 main.py from its folder (activate the venv first):
-     ```bash
-     source .venv/bin/activate
-     python3 main.py
-     ```
-  3. Paste text, check the KoboldCpp URL/voice fields, hit Play.
-     It can take a few seconds before it starts reading the first time.
+1. Run KoboldCpp, I suggest from a terminal / CLI  folder
+    (easier to exit by ctrl-C).
+2. In KoboldCpp, Audio tab (from the left panel vertical tabs), set:
+    - "TTS model (Text-to-speech)"
+    - "WavTokenizer model (Required for some models)"
+    - "TTS Voice Dir" (only if you have custom voices, set folder/directory here)
+    - Might also want to tick "Use GPU" if you have a suitable one.
+3. (You may not need to) In KoboldCpp: Settings -> Media -> Text To Speech, select
+      "OpenAI-Compat. API Server".
+    (For simplicity later, save a KoboldCpp config. Reload on next use).
+4. Run TTS Reader by starting `python3 main.py` from its folder
+    Activate the venv first:
+    ```bash
+    source .venv/bin/activate
+    python3 main.py
+    ```
+5. Paste text, check the KoboldCpp URL/voice fields, hit **▶ Play**
+    It can take a few seconds before it starts reading the first time.
 
-Actually I found point 1 isn't needed, at least not for KoboldCpp v1.116.
-But you do need to load a voice model first:
+KoboldCpp default URL (`http://127.0.0.1:5001`) is already filled in, change
+it if needed.
 
-  In KoboldCpp's Audio tab (vertical tabs in left panel), set:
-  - "TTS model (Text-to-speech)"
-  - "WavTokenizer model (Required for some models)"
-  - "TTS Voice Dir" (only if you have custom voices, set folder/directory here)
-  - Might also want to tick "Use GPU" if you have a suitable one.
-
-  (For simplicity later, save the KoboldCpp config. Reload on next use).
+If leaving the voice field empty (or "Default"), KoboldCpp will just
+pick a random speaker for each sentence. Might not be what you want.
+Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
 
 No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 
@@ -112,7 +112,7 @@ Also, Ctrl + mouse scrollwheel = Zoom text in/out.
 
 ## Tuning
 
-(In the source, not from GUI)
+(In the source code, not from GUI)
 
 - `chunker.PAUSE_MAP` — adjust how long each punctuation mark pauses for.
 - `chunker.PARAGRAPH_PAUSE_MS` — pause length for a paragraph break (2+
@@ -148,6 +148,21 @@ Also, Ctrl + mouse scrollwheel = Zoom text in/out.
    highlighted as well as any words following on the same line.
  - Lines of repeating punctuation might make weird sounds, but it should
    mostly ignore those (except ellipses (...) etc.).
+
+
+## License
+
+  Basically, there's no license.
+  If you use it somewhere or improve it, I would appreciate a mention,
+  but you don't have to.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+  Use at your own risk, modify as you see fit.
+
+  That's all.
 
 
 ## Version history
