@@ -35,17 +35,14 @@ save as wav or mp3 for later listen though.
 
 ## Links
 
-KoboldCpp:
-https://github.com/LostRuins/koboldcpp
+[KoboldCpp](https://github.com/LostRuins/koboldcpp)
 
-TTS models for narration (as also linked from KoboldCpp's page above:
-https://huggingface.co/koboldcpp/tts/tree/main
+[TTS models for narration](https://huggingface.co/koboldcpp/tts/tree/main) (as also linked from KoboldCpp's page above)
+
 
 Me I've so far only tried, and use:
- - Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf  (Can also do voice cloning)
-   https://huggingface.co/koboldcpp/tts/blob/main/Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf
- - qwen3-tts-tokenizer-q8_0.gguf
-   https://huggingface.co/koboldcpp/tts/blob/main/qwen3-tts-tokenizer-q8_0.gguf
+ - [Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf) (Can also do voice cloning)
+ - [qwen3-tts-tokenizer-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/qwen3-tts-tokenizer-q8_0.gguf)
 
 Other TTS models should work as well though.
 
@@ -74,6 +71,7 @@ Other TTS models should work as well though.
     - Might also want to tick "Use GPU" if you have a suitable one.
 3. (You may not need to) In KoboldCpp: Settings -> Media -> Text To Speech, select
       "OpenAI-Compat. API Server".
+
     (For simplicity later, save a KoboldCpp config. Reload on next use).
 4. Run TTS Reader by starting `python3 main.py` from its folder
     Activate the venv first:
@@ -167,6 +165,6 @@ Also, Ctrl + mouse scrollwheel = Zoom text in/out.
 
 ## Version history
 
-  2026.07.05 rarons TTS Reader v0.3  - Save audio, "zoomable" text.
-  2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights.
-  2026.07.03 rarons TTS Reader v0.2  - Initial release
+- 2026.07.05 rarons TTS Reader v0.3  - Save audio, "zoomable" text.
+- 2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights.
+- 2026.07.03 rarons TTS Reader v0.2  - Initial release
