@@ -1,5 +1,4 @@
-<img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/5826ee06-c6f3-413c-9c10-0d37907f46d6" />
-
+<img width="820" height="628" alt="Screenshot from 2026-07-05 01-03-01" src="https://github.com/user-attachments/assets/805ee5b0-721b-4646-8150-951b502b4172" />
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
@@ -28,6 +27,10 @@ So KoboldCpp only gets one sentence at a time, which works much better.
 
 
 ## License
+
+  Basically, there's no license.
+  If you use it somewhere or improve it, I would appreciate a mention,
+  but you don't have to.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -101,6 +104,7 @@ Pretty self explanatory, but:
 | ⏭ Skip | Jump forward one sentence (chunk) |
 | ⏹ Stop | Stop and reset |
 | ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
+| Save Audio | Save as wav or mp3 (when finished rendering) |
 
 
 ## How it works
@@ -195,4 +199,6 @@ Pretty self explanatory, but:
 
 ## Version history
 
-  2026.07.04 rarons TTS Reader v0.25 (let's say) - raron / Claude Sonnet 5
+  2026.07.05 rarons TTS Reader v0.3  - Save audio, "zoomable" text.
+  2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights.
+  2026.07.03 rarons TTS Reader v0.2  - Initial release
