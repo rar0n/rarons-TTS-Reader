@@ -3,7 +3,7 @@
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around KoboldCpp's tendency to drift in voice/speed
-  and outright stop on long single-shot TTS requests.
+  and stop on long single-shot TTS requests.
 
 A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting one sentence at a time, better pauses
@@ -21,8 +21,10 @@ sessions (which is awesome btw, so thanks to Anthropic for that!).
 
 So KoboldCpp only gets one sentence at a time, which works much better.
 
-(Might be due to not setting enough context memory, but at least this way
-that's pretty much not a concern almost regardless of lenght - I think)
+Now this Might be due to me not setting enough context memory, but at least
+this way that shouldn't be a concern almost regardless of lenght - I think.
+
+Plus, imho the pauses are better!
 
 One caveat is if your system renders speech slower than real-time, there
 will be longer pauses between sentences. You can just wait it out and
