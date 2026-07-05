@@ -109,56 +109,9 @@ Pretty self explanatory, but:
 Also, Ctrl + mouse scrollwheel = Zoom text in/out.
 
 
-## How it works
-
-(This is just Claude explaining the inner workings, might be useful)
-
-- **`chunker.py`** splits the input text into small chunks at sentence and
-  clause boundaries (periods, commas, semicolons, colons, em/en-dashes),
-  each tagged with how long a pause should follow it. Very short fragments
-  get merged forward, and common abbreviations (Dr., Mr., e.g., etc.) are
-  protected from being treated as sentence boundaries.
-
-  It's also aware of plain-text line-wrapping conventions:
-  - A single newline is *not* a sentence end — it's folded into the same
-    sentence as a word-space, so a paragraph that's hard-wrapped at 80
-    columns still reads as one continuous sentence instead of one per line.
-  - Two or more consecutive newlines *are* a break (a paragraph end), with
-    a longer pause than a normal sentence.
-  - A hyphen immediately followed by a newline and then a word character
-    (`mes-\nsage`) is treated as a soft hyphen and stitched back into one
-    word (`message`), rather than being read as "mes, dash, sage".
-  - A very long run of text with no punctuation at all (100+ words) gets
-    force-split near its midpoint on a word boundary, so KoboldCpp never
-    gets handed one giant request.
-
-  Because the text sent to KoboldCpp is a normalized version of the source
-  (newlines swapped for spaces, hyphens removed, etc.), each `Chunk` tracks
-  a list of source-text spans (`Chunk.spans`) rather than one `start`/`end`
-  pair — a chunk built from wrapped/hyphenated lines maps back to several
-  separate ranges of the original text, which is what the highlighter uses
-  to select exactly what was spoken.
-- **`tts_client.py`** is a thin wrapper that POSTs each chunk to KoboldCpp's
-  OpenAI-compatible endpoint (`/v1/audio/speech`) and gets back WAV bytes.
-  It also queries `/api/extra/speakers_list` to discover available voices.
-- **`synth_worker.py`** runs in a background `QThread`, synthesizing chunks
-  in order *ahead* of playback so audio is usually ready by the time it's
-  needed — synthesis keeps running even while playback is paused.
-- **`audio_engine.py`** plays the synthesized chunks back to back using
-  `sounddevice`. A single `OutputStream` is opened once and kept open for
-  the app's lifetime; a dedicated feeder thread writes chunk audio and
-  inter-chunk silence into it in small blocks. Pause/resume is
-  sample-accurate (pausing just stops feeding the stream; resuming
-  continues from the exact frame it left off), and rewind/skip are cheap
-  since each chunk is a separate clip — no seeking inside one long stream.
-- **`main.py`** is the GUI: paste text, hit Play, and the currently-spoken
-  chunk gets highlighted directly in the text box as it's read (your
-  "subtitle"/visual-aid effect). The Voice field is a dropdown populated
-  from KoboldCpp's speaker list, with a refresh button and the ability to
-  type a custom voice name that isn't in the list.
-
-
 ## Tuning
+
+(In the source, not from GUI)
 
 - `chunker.PAUSE_MAP` — adjust how long each punctuation mark pauses for.
 - `chunker.PARAGRAPH_PAUSE_MS` — pause length for a paragraph break (2+
@@ -188,15 +141,12 @@ Also, Ctrl + mouse scrollwheel = Zoom text in/out.
   at the end of a line, so it always treats that pattern as a join.
 
 
-## Issues
+## Known Issues
 
- - In rare instances, multiple spaces at the beginning of a line might be
-   highlighted instead of any words following on the same line.
-   It should still speak the words though.
- - Lines of repeating punctuation sounds weird.
- - If the last chunk to speak is short, it might sound weird (should be rare).
- - Some times a paragraph title continues seemingly without a pause after it
-   (IE a line of text, with at least 2 consequtive newlines after it).
+ - In some instances, multiple spaces at the beginning of a line might be
+   highlighted as well as any words following on the same line.
+ - Lines of repeating punctuation might make weird sounds, but it should
+   mostly ignore those (except ellipses (...) etc.).
 
 
 ## Version history
