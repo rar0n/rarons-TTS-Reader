@@ -106,6 +106,8 @@ Pretty self explanatory, but:
 | ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
 | Save Audio | Save as wav or mp3 (when finished rendering) |
 
+Also, Ctrl + mouse scrollwheel = Zoom text in/out.
+
 
 ## How it works
 
