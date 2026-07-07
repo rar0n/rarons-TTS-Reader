@@ -121,14 +121,27 @@ Save / Load settings and Reset to defaults. Nice to have.
 
 ## Tuning (Settings tab)
 
+### Note
+Settings are kind of experimental, some might not be needed.
+You might want to set all types of pauses to 0.
+- Speech might be a bit slow with default pauses, as all pauses will
+  be **additional** to pauses that the TTS engine (KoboldCpp) makes, but
+  only at each chunk (sentence) ends.
+- Mid-chunk only the TTS engine determines how it's spoken, pauses and all.
+- Unless a chunk is deemed too short to be by itself, any punctuation should
+  only be at the end of a chunk sent to KoboldCpp (With a few exceptions.
+  Btw this is also a rule you might tune, see Chunk sizing below).
+
+### Settings
+
 - Pauses (milliseconds) — adjust how long each punctuation mark pauses for.
 - Chunk sizing
   - Min chunk chars — raise this if chunks still sound choppy (more
     merging), lower it for more granular chunks / highlighting.
   - Long-chunk word limit: — how many words trigger a forced mid-sentence
-    split for punctuation-free walls of text.
+    split for punctuation-free walls of text (prevents "overloading" KoboldCpp).
 - Abbreviations list — Comma or newline separated list of typical abbreviations
-  ending in a period, that's not a sentence end.
+  ending in a period, that's not a sentence end (like "Dr.", "Mr.", etc).
 
 
 ## Known limitations
