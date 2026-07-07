@@ -33,7 +33,7 @@ You can just wait it out and save as wav or mp3 for later listen though.
 Note saving as mp3 might take a little while, depending on size.
 
 
-    2026 raron ( But mostly Claude :) )
+    2026 Ragnar Aronsen (raron) ( But mostly Claude :) )
 
 
 ## Links
@@ -47,7 +47,7 @@ Me I've so far only tried, and use:
  - [Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf) (Can also do voice cloning)
  - [qwen3-tts-tokenizer-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/qwen3-tts-tokenizer-q8_0.gguf)
 
-Other TTS models should work as well though.
+Other TTS models should work as well.
 
 
 ## Install
@@ -99,6 +99,8 @@ No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 
 Pretty self explanatory, but:
 
+### Reader tab
+
 | Button | Action |
 |---|---|
 | ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
@@ -110,19 +112,21 @@ Pretty self explanatory, but:
 
 Also, Ctrl + mouse scrollwheel = Zoom text in/out.
 
+### Settings tab
+
+Save / Load settings and Reset to defaults. Nice to have.
+
 
 ## Tuning (Settings tab)
 
-- PAUSE_MAP` — adjust how long each punctuation mark pauses for.
-- PARAGRAPH_PAUSE_MS` — pause length for a paragraph break (2+
-  consecutive newlines) that isn't already followed by real punctuation.
-- MIN_CHUNK_CHARS` — raise this if chunks still sound choppy (more
-  merging), lower it for more granular chunks / highlighting.
-- LONG_CHUNK_WORD_LIMIT` / `FORCED_SPLIT_PAUSE_MS` — how many
-  words trigger a forced mid-sentence split for punctuation-free walls of
-  text, and how short a pause that artificial split gets.
-- ABBREVIATIONS` list — Comma or newline separated list,
-  add any other abbreviations you run into.
+- Pauses (milliseconds) — adjust how long each punctuation mark pauses for.
+- Chunk sizing
+  - Min chunk chars — raise this if chunks still sound choppy (more
+    merging), lower it for more granular chunks / highlighting.
+  - Long-chunk word limit: — how many words trigger a forced mid-sentence
+    split for punctuation-free walls of text.
+- Abbreviations list — Comma or newline separated list of typical abbreviations
+  ending in a period, that's not a sentence end.
 
 
 ## Known limitations
