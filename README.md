@@ -1,3 +1,5 @@
+<img width="831" height="628" alt="image" src="https://github.com/user-attachments/assets/b0a29022-213a-4d0a-bce8-99f389380c15" />
+
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around KoboldCpp's tendency to drift in voice/speed
