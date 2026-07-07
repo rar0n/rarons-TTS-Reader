@@ -177,14 +177,42 @@ class AudioEngine:
         self._wake.set()
 
     def rewind(self, n_chunks: int = 1):
+        """Move back `n_chunks`. If playback is actually running, keeps
+        running from the new position -- but if paused, stays paused (just
+        updates where playback will resume from) instead of silently
+        kicking speech back on."""
         with self._lock:
             target = max(0, self._index - n_chunks)
-        self.play_from(target)
+            was_playing = self._state == PlaybackState.PLAYING
+        if was_playing:
+            self.play_from(target)
+        else:
+            self.seek(target)
 
     def skip_forward(self, n_chunks: int = 1):
+        """See rewind() -- same play/pause-preserving behavior."""
         with self._lock:
             target = min(len(self._chunks) - 1, self._index + n_chunks)
-        self.play_from(target)
+            was_playing = self._state == PlaybackState.PLAYING
+        if was_playing:
+            self.play_from(target)
+        else:
+            self.seek(target)
+
+    def seek(self, index: int):
+        """Move the playback position to `index` without changing
+        play/pause state. Doesn't fire on_chunk_start (that only happens
+        once the feeder thread actually starts playing something) -- a
+        caller doing this while paused should update its own highlight
+        directly from the index it just set."""
+        with self._lock:
+            if not self._chunks:
+                self._index = -1
+                return
+            self._index = max(0, min(len(self._chunks) - 1, index))
+            self._frame_pos = 0
+            self._generation += 1
+        self._wake.set()
 
     def shutdown(self):
         """Fully release the audio device. Call this on app exit -- not

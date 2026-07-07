@@ -1,5 +1,3 @@
-<img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/3b4198d4-cd6c-460b-a4f7-67359c8729a0" />
-
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around KoboldCpp's tendency to drift in voice/speed
@@ -9,10 +7,8 @@ A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting one sentence at a time, better pauses
 (hopefully), and basic Play, Pause/Resume, Rwd/Fwd and Stop controls.
 
-There's no "continue from selection" function, for now just
-delete the preceding text in the textbox if need be after a full stop.
 
-## Vibe coded
+### Vibe coded
 
 Full disclosure, I don't know Python that well. Claude does though.
 As I found KoboldCpp TTS flunked out on longer-form text I vibe-coded this
@@ -21,15 +17,20 @@ sessions (which is awesome btw, so thanks to Anthropic for that!).
 
 So KoboldCpp only gets one sentence at a time, which works much better.
 
-Now this Might be due to me not setting enough context memory, but at least
-this way that shouldn't be a concern almost regardless of lenght - I think.
+At least partly the reason KoboldCpp stopped rendering voice, is probably
+due to me not setting enough context memory. But I doubt very much it could
+do 30+ minutes (tested with this app) to a few hours (not tested) anyway,
+within my 16 GB VRAM when used as context memory (I'm no AI expert though).
+At least this way that shouldn't be a concern almost regardless of lenght
+I think. At least not within your system's memory capacity to store audio
+samples (Rougly 200 MB / 30ish minutes, IIRC).
 
-Plus, imho the pauses are better!
+One issue might be if your system renders speech slower than real-time,
+there will be longer pauses between sentences (or chunks).
+You can just wait it out and save as wav or mp3 for later listen though.
+(just press Play, then again to Pause, wait, and save it).
 
-One caveat is if your system renders speech slower than real-time, there
-will be longer pauses between sentences. You can just wait it out and
-save as wav or mp3 for later listen though.
-(just press Start, then Pause, wait, and save it).
+Note saving as mp3 might take a little while, depending on size.
 
 
     2026 raron ( But mostly Claude :) )
@@ -95,78 +96,91 @@ No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 
 
 ## Controls
+
 Pretty self explanatory, but:
 
 | Button | Action |
 |---|---|
-| ▶ Play | Start fresh (or resume if paused) |
-| ⏸ Pause / ▶ Resume | Pause/resume mid-sentence without losing your place |
+| ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
 | ⏮ Rewind | Jump back one sentence (chunk) and replay |
-| ⏭ Skip | Jump forward one sentence (chunk) |
+| ⏭ Forward | Jump forward one sentence (chunk) |
 | ⏹ Stop | Stop and reset |
-| ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
 | Save Audio | Save as wav or mp3 (when finished rendering) |
+| ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
 
 Also, Ctrl + mouse scrollwheel = Zoom text in/out.
 
 
-## Tuning
+## Tuning (Settings tab)
 
-(In the source code, not from GUI)
-
-- `chunker.PAUSE_MAP` — adjust how long each punctuation mark pauses for.
-- `chunker.PARAGRAPH_PAUSE_MS` — pause length for a paragraph break (2+
+- PAUSE_MAP` — adjust how long each punctuation mark pauses for.
+- PARAGRAPH_PAUSE_MS` — pause length for a paragraph break (2+
   consecutive newlines) that isn't already followed by real punctuation.
-- `chunker.MIN_CHUNK_CHARS` — raise this if chunks still sound choppy (more
-  merging), lower it for more granular highlighting/rewind points.
-- `chunker.LONG_CHUNK_WORD_LIMIT` / `FORCED_SPLIT_PAUSE_MS` — how many
+- MIN_CHUNK_CHARS` — raise this if chunks still sound choppy (more
+  merging), lower it for more granular chunks / highlighting.
+- LONG_CHUNK_WORD_LIMIT` / `FORCED_SPLIT_PAUSE_MS` — how many
   words trigger a forced mid-sentence split for punctuation-free walls of
   text, and how short a pause that artificial split gets.
-- `chunker.ABBREVIATIONS` — add any other abbreviations you run into.
+- ABBREVIATIONS` list — Comma or newline separated list,
+  add any other abbreviations you run into.
+
+
+## Known limitations
+
+- Saving as mp3 might take a little while (a few seconds, depending on size),
+  during which time it will be unresponsive. Be patient :)
+- Sentence splitting is regex-based, not a full NLP sentence tokenizer, so
+  unusual punctuation might cause issues (with speech rhytm, highlighting).
+- Voice cloning / specific voice names depend entirely on how your KoboldCpp
+  instance is configured (`--ttsdir` for Qwen3TTS clones) — the voice
+  dropdown just reflects whatever `/api/extra/speakers_list` reports.
+  You can always type a name if it isn't listed there (they all should be).
 - `synth_worker.py` currently synthesizes one chunk at a time, sequentially.
   If your GPU has headroom, you could run a small thread pool there instead
   for faster lookahead — but most local TTS servers serialize generation on
   the GPU anyway, so this usually isn't a bottleneck.
 
-## Known limitations
-
-- Voice cloning / specific voice names depend entirely on how your KoboldCpp
-  instance is configured (`--ttsdir` for Qwen3TTS clones) — the voice
-  dropdown just reflects whatever `/api/extra/speakers_list` reports, and
-  you can always type a name manually if it isn't listed there.
-- Sentence splitting is regex-based, not a full NLP sentence tokenizer, so
-  unusual punctuation (nested quotes, ellipses, etc.) may need extra rules
-  in `chunker.py` if you hit edge cases. The hyphen-line-wrap join is a
-  heuristic too (hyphen + newline + word-char = join) — it can't tell a
-  genuine paginated word-wrap apart from a dash that just happens to fall
-  at the end of a line, so it always treats that pattern as a join.
-
 
 ## Known Issues
 
- - In some instances, multiple spaces at the beginning of a line might be
-   highlighted as well as any words following on the same line.
- - Lines of repeating punctuation might make weird sounds, but it should
-   mostly ignore those (except ellipses (...) etc.).
+- There's no "continue from selection" function, for now just delete the
+  preceding text in the textbox if need be after a full stop.
+- Lines of repeating punctuation might make weird sounds, but it should
+  mostly ignore those (except ellipses (...) etc.).
 
 
 ## License
 
-  Basically, there's no license.
-  If you use it somewhere or improve it, I would appreciate a mention,
-  but you don't have to.
+MIT License
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+Copyright (c) 2026 Ragnar Aronsen
 
-  Use at your own risk, modify as you see fit.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-  That's all.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 
 ## Version history
 
-- 2026.07.05 rarons TTS Reader v0.3  - Save audio, "zoomable" text.
-- 2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights.
-- 2026.07.03 rarons TTS Reader v0.2  - Initial release
+- 2026.07.07 rarons TTS Reader v0.40 - Settings tab, highlight tweaks,
+                                        chunk rules, MIT License,
+- 2026.07.05 rarons TTS Reader v0.30 - Save audio, "zoomable" text
+- 2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights
+- 2026.07.03 rarons TTS Reader v0.20 - Initial release

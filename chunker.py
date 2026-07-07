@@ -1,7 +1,7 @@
 """
 Splits arbitrary text into small, speakable chunks for TTS.
 
-Why this exists: feeding a longer text to KoboldCpp's TTS in one request
+Why this exists: feeding a whole paragraph to KoboldCpp's TTS in one request
 cause voice drift, speed changes, and cutoffs on long inputs.
 Splitting at sentence/clause boundaries and re-inserting silence ourselves
 (rather than relying on the model to imply a pause) fixes these problems,
@@ -30,12 +30,6 @@ Plain-text-specific handling on top of that:
     "......" or ",,,,,,,,"), *except* runs that match a recognized
     narrative-emphasis pattern -- an ellipsis ("...") or a doubled/tripled
     "!"/"?" -- which are left alone since they're probably intentional.
-  - If the first word after a single-newline wrap starts with a capital
-    letter, it's treated as a new sentence even though the wrapped line
-    didn't end in punctuation. This is a deliberately simple heuristic --
-    it'll occasionally misfire on a line-leading capitalized name -- traded
-    off against correctly catching the much more common case of prose that
-    got hard-wrapped without care for where sentences end.
   - An http(s) URL is matched as one atomic token instead of being torn
     apart by the punctuation/word rules above. Any enclosing "<" "/" ">"
     (the classic "<https://example.com>" plain-text convention) are
@@ -73,11 +67,13 @@ PAUSE_MAP = {
 }
 DEFAULT_PAUSE_MS = 200
 
-# Pause used when we infer a sentence break from a capitalized word right
-# after a single-newline wrap, even though there was no actual sentence-
-# ending punctuation there. Same weight as a normal sentence-ender since
-# that's what we're asserting it functionally is.
-IMPLIED_SENTENCE_PAUSE_MS = PAUSE_MAP["."]
+# Pause inserted right after a URL, regardless of what follows. A URL is a
+# self-contained unit, and plain text after one essentially never carries
+# its own punctuation to mark a break -- so without this, whatever comes
+# next (a wrapped continuation, a new sentence, ...) would run straight
+# into "...dot org" with no gap at all. Comma-ish weight: a real breath,
+# but not asserting it's necessarily a full sentence end.
+URL_PAUSE_MS = 250
 
 # Pause after a paragraph break (2+ consecutive newlines) -- a bit longer
 # than a plain sentence-ender, since it's a bigger structural break.
@@ -238,7 +234,6 @@ def _tokenize(text: str) -> List[Chunk]:
     builder = _Builder()
     pending_glue = ""
     pending_punct: Optional[dict] = None
-    just_had_linebreak = False  # True right after a single (non-paragraph) \n
 
     def flush_punct() -> None:
         """Close out whatever punctuation run is in progress, if any,
@@ -270,7 +265,6 @@ def _tokenize(text: str) -> List[Chunk]:
             else:
                 flush_punct()
                 pending_punct = {"char": ch, "start": m.start(), "end": m.end(), "count": 1}
-            just_had_linebreak = False
             continue
 
         # Any non-punct token means a punctuation run (if any) is over.
@@ -287,20 +281,21 @@ def _tokenize(text: str) -> List[Chunk]:
                 # paragraph-break pause.
                 chunks[-1].pause_ms = max(chunks[-1].pause_ms, PARAGRAPH_PAUSE_MS)
             pending_glue = ""
-            just_had_linebreak = False
         elif kind == "hyphenjoin":
             pending_glue = ""  # next word glues directly onto this one, no space
-            just_had_linebreak = False
         elif kind == "linebreak":
             pending_glue = " "  # a single newline just becomes a word-space
-            just_had_linebreak = True
         elif kind == "url":
             humanized = _humanize_url(m.group())
             if not humanized:
                 continue
             builder.add(humanized, m.start(), m.end(), pending_glue)
             pending_glue = ""
-            just_had_linebreak = False
+            # Close the chunk out right here -- see URL_PAUSE_MS above for
+            # why this can't just be left to fall through to whatever
+            # normally ends a chunk.
+            chunks.append(builder.build(URL_PAUSE_MS))
+            builder = _Builder()
         elif kind == "word":
             raw_word = m.group()
             leading_ws = raw_word[:1] in (" ", "\t")
@@ -312,6 +307,17 @@ def _tokenize(text: str) -> List[Chunk]:
                 # comes right after (always punctuation or a newline in
                 # this case) sets the glue itself.
                 continue
+            # The source span must cover only the part of the raw match
+            # that actually survives into `normalized` -- i.e. excluding
+            # the leading/trailing whitespace _normalize_word strips off.
+            # Without this, a line-leading run of indentation spaces (which
+            # lands inside this same "word" match, since the regex doesn't
+            # stop at spaces) gets folded into the span, and a highlight
+            # for this chunk ends up covering that indentation too.
+            lead_len = len(raw_word) - len(raw_word.lstrip(" \t"))
+            trail_len = len(raw_word) - len(raw_word.rstrip(" \t"))
+            span_start = m.start() + lead_len
+            span_end = m.end() - trail_len
             # Normally pending_glue already carries the right separator
             # (from punctuation or a newline). But a word token can now
             # also sit directly next to a url token with nothing between
@@ -319,23 +325,12 @@ def _tokenize(text: str) -> List[Chunk]:
             # leading whitespace (stripped out by _normalize_word) is the
             # only place that separator ever existed -- so fall back to it.
             glue = pending_glue or (" " if leading_ws else "")
-            if (
-                just_had_linebreak
-                and not builder.is_empty()
-                and normalized[0].isupper()
-            ):
-                # Capitalized word right after a line wrap: treat it as an
-                # implied sentence break even without real punctuation.
-                chunks.append(builder.build(IMPLIED_SENTENCE_PAUSE_MS))
-                builder = _Builder()
-                glue = ""  # fresh chunk -- no leading space wanted regardless
-            builder.add(normalized, m.start(), m.end(), glue)
+            builder.add(normalized, span_start, span_end, glue)
             # Same idea in reverse: hand off this word's own trailing
             # whitespace as glue for whatever comes next, since nothing
             # else will if the next token is a url with no punctuation or
             # newline in between.
             pending_glue = " " if trailing_ws else ""
-            just_had_linebreak = False
 
     flush_punct()
     if not builder.is_empty():
@@ -365,19 +360,31 @@ def _strip_chunk(chunk: Chunk) -> Chunk:
     return Chunk(text=stripped, spans=out_spans, pause_ms=chunk.pause_ms, text_ranges=out_ranges)
 
 
+def _has_real_break(chunk: Chunk) -> bool:
+    """True if `chunk` ends on a genuine sentence/paragraph-level pause
+    (period-or-stronger) and has actual content -- as opposed to a stray
+    punctuation-only fragment that happened to inherit a big pause (see
+    the parabreak handling in `_tokenize`), which should still be free to
+    merge. Used to stop the "too short, fold it in" merge logic from
+    swallowing a real pause between two separate thoughts (e.g. "Inc."
+    followed by a URL) just because the first one is short."""
+    return chunk.pause_ms >= PAUSE_MAP["."] and any(ch.isalnum() for ch in chunk.text)
+
+
 def _merge_short_and_abbrev(chunks: List[Chunk]) -> List[Chunk]:
     """Merge runs of short fragments (and abbreviation-truncated ones)
     forward into the next chunk, same behavior as before -- except a short
-    chunk of *real content* that already carries a paragraph-level pause
-    is left alone. That pause is deliberate (e.g. a standalone heading/
-    title line followed by a blank line), not the "lone short utterance
-    sounds choppy" problem this merge exists to fix, and merging would
-    drag the pause away from right after the heading to wherever the
-    *next* chunk happens to end. "Real content" (at least one letter or
-    digit) is the key qualifier -- a lone stray punctuation mark that
-    happens to have inherited a paragraph pause (see _tokenize's parabreak
-    handling) should still merge forward rather than get sent to the TTS
-    engine as a standalone one-character utterance."""
+    chunk of *real content* that already carries a genuine sentence-ending
+    (or paragraph) pause is left alone, unless it's a recognized
+    abbreviation. That pause is deliberate -- e.g. "Inc." right before a
+    URL is the end of one thought, not a stray short fragment -- and
+    merging would silently erase it by folding both into a single TTS
+    request with nothing marking the boundary. "Real content" (at least
+    one letter or digit) is the key qualifier for the protection -- a lone
+    stray punctuation mark that happens to have inherited a paragraph pause
+    (see _tokenize's parabreak handling) should still merge forward rather
+    than get sent to the TTS engine as a standalone one-character
+    utterance."""
     merged: List[Chunk] = []
     buffer: Optional[Chunk] = None
     for c in chunks:
@@ -386,12 +393,10 @@ def _merge_short_and_abbrev(chunks: List[Chunk]) -> List[Chunk]:
             continue
         words = buffer.text.split()
         last_word = words[-1].lower() if words else ""
-        is_short_or_abbrev = len(buffer.text) < MIN_CHUNK_CHARS or last_word in ABBREVIATIONS
-        protect_pause = (
-            buffer.pause_ms >= PARAGRAPH_PAUSE_MS
-            and any(ch.isalnum() for ch in buffer.text)
-        )
-        if is_short_or_abbrev and not protect_pause:
+        is_abbrev = last_word in ABBREVIATIONS
+        is_too_short = len(buffer.text) < MIN_CHUNK_CHARS
+        should_merge = is_abbrev or (is_too_short and not _has_real_break(buffer))
+        if should_merge:
             offset = len(buffer.text) + 1  # +1 for the joining space below
             buffer = Chunk(
                 text=f"{buffer.text} {c.text}",
@@ -454,7 +459,12 @@ def chunk_text(text: str) -> List[Chunk]:
     merged = _merge_short_and_abbrev(raw)
     final: List[Chunk] = []
     for c in merged:
-        final.extend(_split_if_long(c))
+        # Passed explicitly (rather than relying on _split_if_long's default
+        # parameter) so a runtime change to LONG_CHUNK_WORD_LIMIT -- e.g. from
+        # the GUI's settings tab -- takes effect immediately. A default
+        # argument is bound once at function-definition time and wouldn't
+        # ever see the updated value.
+        final.extend(_split_if_long(c, LONG_CHUNK_WORD_LIMIT))
 
     # `_merge_short_and_abbrev` only merges short fragments *forward* into
     # the next chunk, so a too-short final chunk has nothing to merge into
@@ -465,11 +475,7 @@ def chunk_text(text: str) -> List[Chunk]:
     # merged result never gets force-split again even if it now runs a bit
     # over LONG_CHUNK_WORD_LIMIT -- that's fine, it won't be by much.
     if len(final) >= 2 and len(final[-1].text) < MIN_CHUNK_CHARS:
-        prev_protected = (
-            final[-2].pause_ms >= PARAGRAPH_PAUSE_MS
-            and any(ch.isalnum() for ch in final[-2].text)
-        )
-        if not prev_protected:
+        if not _has_real_break(final[-2]):
             last = final.pop()
             prev = final[-1]
             offset = len(prev.text) + 1  # +1 for the joining space below
