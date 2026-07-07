@@ -123,7 +123,9 @@ Save / Load settings and Reset to defaults. Nice to have.
 
 ### Note
 Settings are kind of experimental, some might not be needed.
-You might want to set all types of pauses to 0.
+
+You might want to set all types of pauses to 0 (maybe except
+paragraph pauses?)
 - Speech might be a bit slow with default pauses, as all pauses will
   be **additional** to pauses that the TTS engine (KoboldCpp) makes, but
   only at each chunk (sentence) ends.
