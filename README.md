@@ -58,7 +58,7 @@ Other TTS models should work as well.
    right-click the folder and select "Open in Terminal" (Linux).
 2. Install dependencies into a venv (virtual environment):
    ```bash
-   python3 -m venv .venv
+   python3 -m venv venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
@@ -81,7 +81,7 @@ Other TTS models should work as well.
 4. Run TTS Reader by starting `python3 main.py` from its folder
     Activate the venv first:
     ```bash
-    source .venv/bin/activate
+    source venv/bin/activate
     python3 main.py
     ```
 5. Paste text, check the KoboldCpp URL/voice fields, hit **▶ Play**
