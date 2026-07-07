@@ -59,7 +59,7 @@ Other TTS models should work as well.
 2. Install dependencies into a venv (virtual environment):
    ```bash
    python3 -m venv venv
-   source .venv/bin/activate
+   source venv/bin/activate
    pip install -r requirements.txt
    ```
    (On Linux you may also need the PortAudio runtime: `sudo apt install libportaudio2`)
