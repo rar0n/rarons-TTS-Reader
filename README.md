@@ -137,6 +137,8 @@ Also, Ctrl + mouse scrollwheel = Zoom text in/out.
 It's a table of stored voices and seed values, if saved from Narration tab.
 Click on a row's Comment column to edit it for your own reference.
 
+| Button | Action |
+|---|---|
 | Remove row | Deletes selected row |
 | Copy seed to Narration | Copies selected row's seed and voice |
 | Save Table | Updates the saved config file with table |
