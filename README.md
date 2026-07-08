@@ -3,11 +3,13 @@
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around KoboldCpp's tendency to drift in voice/speed
-  and stop on long single-shot TTS requests.
+  and stop on long single-shot TTS requests (1)
 
 A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting one sentence at a time, better pauses
 (hopefully), and basic Play, Pause/Resume, Rwd/Fwd and Stop controls.
+
+New: Narration seed management. Get the same voice inflection again.
 
 
 ### Vibe coded
@@ -19,13 +21,14 @@ sessions (which is awesome btw, so thanks to Anthropic for that!).
 
 So KoboldCpp only gets one sentence at a time, which works much better.
 
-At least partly the reason KoboldCpp stopped rendering voice, is probably
-due to me not setting enough context memory. But I doubt very much it could
-do 30+ minutes (tested with this app) to a few hours (not tested) anyway,
-within my 16 GB VRAM when used as context memory (I'm no AI expert though).
+(1) At least partly the reason KoboldCpp stopped rendering voice, is probably
+due to me not knowing how to use the awesome KoboldCpp, like setting enough
+context memory. Still - I doubt very much it could do 30+ minutes (tested
+with this app) to a few hours (not tested yet). I'm no AI expert though.
+
 At least this way that shouldn't be a concern almost regardless of lenght
 I think. At least not within your system's memory capacity to store audio
-samples (Rougly 200 MB / 30ish minutes, IIRC).
+samples. Rougly 350 MB / hour, about half on disk as wav, even less as mp3.
 
 One issue might be if your system renders speech slower than real-time,
 there will be longer pauses between sentences (or chunks).
@@ -90,18 +93,30 @@ Other TTS models should work as well.
 KoboldCpp default URL (`http://127.0.0.1:5001`) is already filled in, change
 it if needed.
 
-If leaving the voice field empty (or "Default"), KoboldCpp will just
+- No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
+
+- If leaving the voice field empty (or "Default"), KoboldCpp will just
 pick a random speaker for each sentence. Might not be what you want.
 Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
 
-No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
+- If the TTS Reader's "Seed" value is empty, KoboldCpp will make one at random,
+  but so far I haven't found a way of retrieving said value.
+
+Instead we make our own seed value.
+- Clicking the dice button next to it makes a random value.
+  If you happen upon a value you'd like to keep, click "Store seed", and it's
+  saved to the Seed Vault tab (as well as in the settings file; config.json).
+
+(This feature relies on an undocumented feature of KoboldCpp v1.116, or its API
+ which I just guessed. No guarantee it'll work in later versions of KoboldCpp)
+
 
 
 ## Controls
 
 Pretty self explanatory, but:
 
-### Reader tab
+### Narration tab
 
 | Button | Action |
 |---|---|
@@ -111,8 +126,21 @@ Pretty self explanatory, but:
 | ⏹ Stop | Stop and reset |
 | Save Audio | Save as wav or mp3 (when finished rendering) |
 | ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
+| 🎲 (next to Seed value) | Randomize seed |
+| Store seed | Store seed in Seed Vault (and disk) |
 
 Also, Ctrl + mouse scrollwheel = Zoom text in/out.
+
+
+### Seed Vault tab
+
+It's a table of stored voices and seed values, if saved from Narration tab.
+Click on a row's Comment column to edit it for your own reference.
+
+| Remove row | Deletes selected row |
+| Copy seed to Narration | Copies selected row's seed and voice |
+| Save Table | Updates the saved config file with table |
+
 
 ### Settings tab
 
@@ -131,8 +159,8 @@ paragraph pauses?)
   only at each chunk (sentence) ends.
 - Mid-chunk only the TTS engine determines how it's spoken, pauses and all.
 - Unless a chunk is deemed too short to be by itself, any punctuation should
-  only be at the end of a chunk sent to KoboldCpp (With a few exceptions.
-  Btw this is also a rule you might tune, see Chunk sizing below).
+  only be at the end of a chunk sent to KoboldCpp.
+  (Btw this is also a rule you might tune, see Chunk sizing below).
 
 ### Settings
 
@@ -200,6 +228,7 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 ## Version history
 
+- 2026.07.08 rarons TTS Reader v0.45 - Own seed value, Seed Vault, color tweaks
 - 2026.07.07 rarons TTS Reader v0.40 - Settings tab, highlight tweaks,
                                         chunk rules, MIT License,
 - 2026.07.05 rarons TTS Reader v0.30 - Save audio, "zoomable" text
