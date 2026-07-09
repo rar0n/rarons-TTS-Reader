@@ -119,6 +119,7 @@ it if needed.
   saved to the Seed Vault tab (as well as in the settings file; settings.json).
   (AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
   or its API. No guarantee it'll work in later versions of KoboldCpp)
+  - Confirmed it still works on KoboldCpp v.1.117
 
 
 ## Controls
@@ -169,8 +170,10 @@ Click on a row's Comment cell to edit a note for your own reference about it.
 ### Settings tab
 
 Save / Load settings and Reset to defaults.
-Nice to have if you want settins (and Seed Vault) to persist, or if you
+Nice to have if you want settings (and Seed Vault) to persist, or if you
 want to reload the settings.
+Reset to default just loads some preliminary default values
+(As said, you might want most of these to 0 (zero), experiment!)
 
 
 ## Tuning (Settings tab)
