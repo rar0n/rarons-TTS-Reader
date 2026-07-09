@@ -116,7 +116,7 @@ it if needed.
   make one at random on each new speech (play).
 - Clicking the dice button next to it makes a random seed value.
 - If you happen upon a value you'd like to keep, click "Store seed", and it's
-  saved to the Seed Vault tab (as well as in the settings file; config.json).
+  saved to the Seed Vault tab (as well as in the settings file; settings.json).
   (AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
   or its API. No guarantee it'll work in later versions of KoboldCpp)
 
@@ -163,7 +163,7 @@ Click on a row's Comment cell to edit a note for your own reference about it.
 |---|---|
 | Remove row | Deletes selected row |
 | Copy seed to Narration | Copies selected row's seed and voice |
-| Save Table | Updates the saved config file with table |
+| Save Table | Updates the saved settings.json file with the table |
 
 
 ### Settings tab
@@ -237,6 +237,7 @@ samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
   everything
 - (Linux Mint) You probaby will get a few warnings about ALSA underruns.
   (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). Ignore it :)
+  (I'll get it fixed eventually. Probably)
 - Scrolling in the Settings tab might inadvertedly change numeric values
   if your mouse cursor hovers over a field while scrolling.
 
