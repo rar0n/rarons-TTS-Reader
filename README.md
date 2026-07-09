@@ -38,6 +38,12 @@ You can just wait it out and save as wav or mp3 for later listen though.
 Note: Saving as mp3 might take some time, during which time its unresponsive.
       (usually just a few seconds, depending on size and system specs)
 
+Note 2: Most of the source code comments is Claude's. Some (not all) of the
+        reasoning behind _why_ something is done is Claude's assumption and
+        a bit off (usually not something I explicitly said).
+        Program logic seems solid though (afaik).
+
+
     2026 Ragnar Aronsen (raron) ( But mostly Claude :) )
 
 
