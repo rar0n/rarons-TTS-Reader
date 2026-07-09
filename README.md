@@ -18,10 +18,11 @@ So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
   - Note save as mp3 may take a bit of time (depending on length etc.)
 - **Live highligthing** of spoken sentences (or TTS chunks)
-- **highlight margins** (optional), you can set the ratio of screen margin as
+- **Highlight margins** (optional), you can set the ratio of screen margin as
   a "Scroll Denominator" (Ex. 4 means 1/4 of screen height. When the highlight
   reaches 1/4 textbox height from its top or bottom edge, it will scroll the
   highlight to the other edge, with the same 1/4 distance.
+  - Thus making the text around the highlighted area visible (if enough text).
 - **TTS seed value management** (Rudimentary. Can reuse seeds):
   - Save / load to / from "Seed Vault" tab table.
   - Optional notes in the "Seed Vault" table.
@@ -157,8 +158,9 @@ it if needed.
 
 ### Seed Vault tab
 
-It's a table of stored voices and seed values, if saved from Narration tab.
-Click on a row's Comment cell to edit a note for your own reference about it.
+A simple table of voices and seed values, if stored from the Narration tab.
+Click on a row's Comment cell to edit a note about it.
+Or click on a row to select it for deletion.
 
 | Button | Action |
 |---|---|
@@ -173,7 +175,7 @@ Save / Load settings and Reset to defaults.
 Nice to have if you want settings (and Seed Vault) to persist, or if you
 want to reload the settings.
 Reset to default just loads some preliminary default values
-(As said, you might want most of these to 0 (zero), experiment!)
+(You might want most of these to 0 (zero), experiment!)
 
 
 ## Tuning (Settings tab)
@@ -181,8 +183,8 @@ Reset to default just loads some preliminary default values
 ### Note
 Settings are kind of experimental / tests. Some might not be that useful.
 
-You might want to set all types of pauses to 0 (maybe except
-paragraph pauses?)
+As said, you might want to set most of these to 0 (maybe except
+paragraph pauses?), maybe even chunk minimum sizing.
 - Speech might be a bit slow with default pauses, as all pauses will
   be **additional** to pauses that the TTS engine (KoboldCpp) makes, but
   only at each chunk (sentence) ends.
@@ -193,7 +195,8 @@ paragraph pauses?)
 
 ### Settings
 
-- Pauses (milliseconds) — adjust how long each punctuation mark pauses for.
+- Pauses (milliseconds) — Extra pauses at the end of each TTS sentence chunk
+  (depending on punctuation).
 - Chunk sizing
   - Min chunk chars — raise this if chunks still sound choppy (more
     merging), lower it for more granular chunks / highlighting.
@@ -209,14 +212,9 @@ paragraph pauses?)
   during which time it will be unresponsive. Be patient :)
 - Sentence splitting is regex-based, not a full NLP sentence tokenizer, so
   unusual punctuation might cause issues (with speech rhytm, highlighting).
-- Voice cloning / specific voice names depend entirely on how your KoboldCpp
-  instance is configured (`--ttsdir` for Qwen3TTS clones) — the voice
-  dropdown just reflects whatever `/api/extra/speakers_list` reports.
-  You can always type a name if it isn't listed there (they all should be).
-- `synth_worker.py` currently synthesizes one chunk at a time, sequentially.
-  If your GPU has headroom, you could run a small thread pool there instead
-  for faster lookahead — but most local TTS servers serialize generation on
-  the GPU anyway, so this usually isn't a bottleneck.
+- TTS speech depends on KoboldCpp configuration.
+  (Only between chunk pauses, chunk selection, and chunk preparation depends
+   on this TTS Reader).
 
 Btw: At least partly the reason KoboldCpp stopped rendering voice, is probably
 due to me not knowing how to use the KoboldCpp properly, like setting enough
@@ -240,7 +238,7 @@ samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
   everything
 - (Linux Mint) You probaby will get a few warnings about ALSA underruns.
   (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). Ignore it :)
-  (I'll get it fixed eventually. Probably)
+  (Also another warning popped up. I'll get it fixed eventually. Probably)
 - Scrolling in the Settings tab might inadvertedly change numeric values
   if your mouse cursor hovers over a field while scrolling.
 
