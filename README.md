@@ -1,30 +1,30 @@
-<img width="841" height="628" alt="image" src="https://github.com/user-attachments/assets/67c2e619-da0b-4a5a-8bcd-a26f4c3bb3b5" />
+<img width="831" height="628" alt="image" src="https://github.com/user-attachments/assets/b0a29022-213a-4d0a-bce8-99f389380c15" />
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
-- Built to work around KoboldCpp's tendency to drift in voice/speed
-  and stop on long single-shot TTS requests (1)
+- Built to work around limited context memory, making KoboldCpp's TTS
+  stutter or stop on long single-shot TTS requests.
 
 A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting one sentence at a time, better pauses
-(hopefully), and basic Play, Pause/Resume, Rwd/Fwd and Stop controls.
-
-New: Narration seed management. Get the same voice inflection again.
+(hopefully), and basic controls.
 
 
 ### Vibe coded
 
 Full disclosure, I don't know Python that well. Claude does though.
 As I found KoboldCpp TTS flunked out on longer-form text I vibe-coded this
-with Claude Sonnet 5 on Extra / High  and Medium effort, over a few free
-sessions (which is awesome btw, so thanks to Anthropic for that!).
+with Claude Sonnet 5 on Extra / High  and Medium effort, over now quite a
+few free sessions (which is awesome btw, so thanks to Anthropic for that!).
 
-So KoboldCpp only gets one sentence at a time, which works much better.
+So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 
-(1) At least partly the reason KoboldCpp stopped rendering voice, is probably
+At least partly the reason KoboldCpp stopped rendering voice, is probably
 due to me not knowing how to use the awesome KoboldCpp, like setting enough
-context memory. Still - I doubt very much it could do 30+ minutes (tested
-with this app) to a few hours (not tested yet). I'm no AI expert though.
+context memory.
+
+Still - I doubt **very much** it could do 40+ minutes (tested with this app)
+to a few hours (not tested yet but I see no reason why it shouldn't work).
 
 At least this way that shouldn't be a concern almost regardless of lenght
 I think. At least not within your system's memory capacity to store audio
@@ -35,8 +35,8 @@ there will be longer pauses between sentences (or chunks).
 You can just wait it out and save as wav or mp3 for later listen though.
 (just press Play, then again to Pause, wait, and save it).
 
-Note saving as mp3 might take a little while, depending on size.
-
+Note: Saving as mp3 might take some time, during which time its unresponsive.
+      (usually just a few seconds, depending on size and system specs)
 
     2026 Ragnar Aronsen (raron) ( But mostly Claude :) )
 
@@ -87,28 +87,24 @@ Other TTS models should work as well.
     source venv/bin/activate
     python3 main.py
     ```
-5. Paste text, check the KoboldCpp URL/voice fields, hit **▶ Play**
+5. Paste text (or drag'n'drop a text file - other files might have odd
+   formatting), check the KoboldCpp URL/voice fields, hit **▶ Play**
     It can take a few seconds before it starts reading the first time.
 
 KoboldCpp default URL (`http://127.0.0.1:5001`) is already filled in, change
 it if needed.
 
 - No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
-
-- If leaving the voice field empty (or "Default"), KoboldCpp will just
-pick a random speaker for each sentence. Might not be what you want.
-Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
-
-- If the TTS Reader's "Seed" value is empty, KoboldCpp will make one at random,
-  but so far I haven't found a way of retrieving said value.
-
-Instead we make our own seed value.
-- Clicking the dice button next to it makes a random value.
-  If you happen upon a value you'd like to keep, click "Store seed", and it's
+- If deleting the voice field (or as "Default"), KoboldCpp will just
+  pick a random speaker for each sentence. Might not be what you want.
+  Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
+- If the TTS Reader's "Lock seed" option is unticked, the TTS Reader will
+  make one at random.
+- Clicking the dice button next to it makes a random seed value.
+- If you happen upon a value you'd like to keep, click "Store seed", and it's
   saved to the Seed Vault tab (as well as in the settings file; config.json).
-
-(This feature relies on an undocumented feature of KoboldCpp v1.116, or its API
- which I just guessed. No guarantee it'll work in later versions of KoboldCpp)
+  (AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
+  or its API. No guarantee it'll work in later versions of KoboldCpp)
 
 
 
@@ -127,6 +123,7 @@ Pretty self explanatory, but:
 | Save Audio | Save as wav or mp3 (when finished rendering) |
 | ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
 | 🎲 (next to Seed value) | Randomize seed |
+| Lock seed | Stops TTS Reader from making a new seed value on next play |
 | Store seed | Store seed in Seed Vault (and disk) |
 
 Also, Ctrl + mouse scrollwheel = Zoom text in/out.
@@ -135,7 +132,7 @@ Also, Ctrl + mouse scrollwheel = Zoom text in/out.
 ### Seed Vault tab
 
 It's a table of stored voices and seed values, if saved from Narration tab.
-Click on a row's Comment column to edit it for your own reference.
+Click on a row's Comment cell to edit a note for your own reference about it.
 
 | Button | Action |
 |---|---|
@@ -198,6 +195,7 @@ paragraph pauses?)
   preceding text in the textbox if need be after a full stop.
 - Lines of repeating punctuation might make weird sounds, but it should
   mostly ignore those (except ellipses (...) etc.).
+- GUI is a bit off right now, but workable. It'll be fixed soon (I hope).
 
 
 ## License
@@ -230,9 +228,12 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 ## Version history
 
+- 2026.07.08 rarons TTS Reader v0.50 - More narration rules (numbers, URL's)
+                                       Drag'n'drop files, auto scroll,
+                                       other tweaks.
 - 2026.07.08 rarons TTS Reader v0.45 - Own seed value, Seed Vault, color tweaks
 - 2026.07.07 rarons TTS Reader v0.40 - Settings tab, highlight tweaks,
-                                        chunk rules, MIT License,
+                                       chunk rules, MIT License,
 - 2026.07.05 rarons TTS Reader v0.30 - Save audio, "zoomable" text
 - 2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights
 - 2026.07.03 rarons TTS Reader v0.20 - Initial release

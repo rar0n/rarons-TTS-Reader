@@ -1,8 +1,8 @@
 """
 rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
-- Built to work around KoboldCpp's tendency to drift in voice/speed
-  and stop on long single-shot TTS requests.
+- Built to work around limited context memory for KoboldCpp TTS,
+  for long single-shot TTS requests.
 
 
 MIT License
@@ -37,12 +37,16 @@ TTS API, with live highlighting one sentence at a time, better pauses
 
 Note: Saving as mp3 might take a little while, depending on size.
 
+Note 2: Most of the source code comments is Claude's. Some (not all) of the
+        reasoning behind _why_ something is done is Claude's assumption and
+        a bit "off" (usually not something I explicitly said).
+        Program logic seems solid though (afaik).
+
 More in README.md
 
     2026 raron ( But mostly Claude :) )
 
 That is all.
-
 """
 
 import sys
@@ -62,6 +66,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QLineEdit, QLabel, QFormLayout, QMessageBox,
     QComboBox, QFileDialog, QTabWidget, QSpinBox, QPlainTextEdit,
     QGroupBox, QScrollArea, QTableWidget, QTableWidgetItem, QAbstractItemView,
+    QCheckBox,
 )
 
 import chunker  # imported as a module (not just `from chunker import ...`) so the
@@ -72,6 +77,9 @@ from tts_client import KoboldTTSClient, TTSError
 from synth_worker import SynthWorker
 from audio_engine import AudioEngine, PlaybackState
 
+# Titlebar info
+_PROGRAMTITLE = "raron's TTS Reader v0.50 (2026.07.09)"
+
 # Where chunking settings get saved to / auto-loaded from on startup.
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
 
@@ -79,15 +87,61 @@ DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
 _STATUS_STYLE_NORMAL = "background-color: #204090; color: white; padding: 4px;"
 _STATUS_STYLE_ERROR = "background-color: #8b0000; color: white; padding: 4px;"
 
-# Shared dark RGB palette for buttons across all tabs.
-_COLOR_DARK_BLUE = "#101040"    # same blue as the status label -- Play, Randomize seed, Copy seed
-_COLOR_DARK_GREEN = "#104010"   # "ready" / save / store actions
-_COLOR_DARK_RED = "#401010"     # same red as the error style -- stop / remove / destructive-ish actions
-_COLOR_DARK_AMBER = "#804000"   # active seek controls -- Rewind / Forward while playing or paused
+# Shared muted RGB palette for buttons across all tabs. These are
+# desaturated/darkened versions of the accent hues (rather than the near-
+# saturated originals) so buttons blend into the dark theme instead of
+# popping out of it, while still reading clearly as blue/green/red/amber.
+_COLOR_DARK_BLUE = "#3a4864"    # Play / pause / resume, Randomize seed, Copy seed, Reset to Defaults
+_COLOR_DARK_GREEN = "#3f5442"   # "ready" / save / store actions
+_COLOR_DARK_RED = "#5c3a3a"     # stop / remove / destructive-ish actions
+_COLOR_DARK_AMBER = "#6b4d2c"   # active seek controls -- Rewind / Forward while playing
+
+# The same four hues again, pushed further toward the background -- used
+# for the *disabled* look of a button instead of Qt's stock light-grey,
+# which looks boring.
+_COLOR_DISABLED_BLUE = "#2a323f"
+_COLOR_DISABLED_GREEN = "#2c332d"
+_COLOR_DISABLED_RED = "#3a2c2c"
+_COLOR_DISABLED_AMBER = "#3c3122"
+
+_DISABLED_TEXT_COLOR = "#787878"
+
+# The transport row's middle buttons (Rewind/Forward/Stop) get this
+# height; the two end buttons (Play, Save Audio) get the taller one --
+# see the comment where these are applied for why.
+_TRANSPORT_BTN_HEIGHT = 30
+_TRANSPORT_END_BTN_HEIGHT = 38
+
+# A plain uniform fixed height for button rows elsewhere (Seed Vault,
+# Settings) where all the buttons should just match -- same underlying
+# issue as the transport row: some of their emoji glyphs (e.g. 🗑) render
+# taller than others (⇦, 💾) in most fonts, so leaving height to auto-size
+# off the text makes buttons in the same row mismatched.
+_STANDARD_BTN_HEIGHT = 30
+
+# Maps each "on" color to its own muted "disabled" counterpart, so
+# _btn_style can be called with just the on-color and still pick a
+# sensibly-matched disabled shade instead of a generic one.
+_DISABLED_COLOR_MAP = {
+    _COLOR_DARK_BLUE: _COLOR_DISABLED_BLUE,
+    _COLOR_DARK_GREEN: _COLOR_DISABLED_GREEN,
+    _COLOR_DARK_RED: _COLOR_DISABLED_RED,
+    _COLOR_DARK_AMBER: _COLOR_DISABLED_AMBER,
+}
 
 
-def _btn_style(color: str) -> str:
-    return f"background-color: {color}; color: white; padding: 4px;"
+def _btn_style(color: str, disabled_color: str = None) -> str:
+    """Builds a stylesheet that keeps `color` while the button is enabled
+    and automatically swaps to a more muted `disabled_color` once it
+    isn't -- via QPushButton:disabled -- so a button only ever needs
+    setEnabled() calls to look "greyed out", no manual stylesheet
+    toggling required to fake that look."""
+    if disabled_color is None:
+        disabled_color = _DISABLED_COLOR_MAP.get(color, "#2e2e2e")
+    return (
+        f"QPushButton {{ background-color: {color}; color: white; padding: 4px; }}"
+        f"QPushButton:disabled {{ background-color: {disabled_color}; color: {_DISABLED_TEXT_COLOR}; }}"
+    )
 
 # Used to project remaining time before any chunk has actually been
 # synthesized yet (roughly 150 words/minute of speech).
@@ -147,10 +201,21 @@ class ZoomableTextEdit(QTextEdit):
     """A QTextEdit where holding Ctrl while scrolling changes the font size
     instead of scrolling the view -- Qt doesn't expose this as a setting,
     so it's done by hand here, one point size per notch, clamped so it
-    can't be scrolled down to unreadable or up to absurd."""
+    can't be scrolled down to unreadable or up to absurd.
+
+    Also accepts a dropped file: instead of Qt's default of inserting the
+    dropped text/URL literally, dropping a local file here loads that
+    file's contents into the box (replacing whatever was there), same as
+    using a File > Open would if this app had one."""
 
     MIN_POINT_SIZE = 6
     MAX_POINT_SIZE = 48
+
+    file_dropped = Signal(str)  # emits the dropped file's path
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setAcceptDrops(True)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.ControlModifier:
@@ -169,6 +234,38 @@ class ZoomableTextEdit(QTextEdit):
         if new_size != size:
             font.setPointSize(new_size)
             self.setFont(font)
+
+    def _droppable_local_file(self, mime_data) -> str | None:
+        """Returns the path of the first local-file URL in `mime_data`, or
+        None if there isn't one (or the box is read-only, e.g. mid-
+        playback -- dropping a new file out from under an active reading
+        would be more surprising than helpful)."""
+        if self.isReadOnly() or not mime_data.hasUrls():
+            return None
+        for url in mime_data.urls():
+            if url.isLocalFile():
+                return url.toLocalFile()
+        return None
+
+    def dragEnterEvent(self, event):
+        if self._droppable_local_file(event.mimeData()):
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if self._droppable_local_file(event.mimeData()):
+            event.acceptProposedAction()
+            return
+        super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        path = self._droppable_local_file(event.mimeData())
+        if path:
+            event.acceptProposedAction()
+            self.file_dropped.emit(path)
+            return
+        super().dropEvent(event)
 
 
 class EngineBridge(QObject):
@@ -317,6 +414,8 @@ class SettingsTab(QWidget):
         self.save_btn.setStyleSheet(_btn_style(_COLOR_DARK_GREEN))
         self.load_btn.setStyleSheet(_btn_style(_COLOR_DARK_RED))
         self.reset_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
+        for btn in (self.save_btn, self.load_btn, self.reset_btn):
+            btn.setFixedHeight(_STANDARD_BTN_HEIGHT)
         self.save_btn.clicked.connect(self._on_save_clicked)
         self.load_btn.clicked.connect(self._on_load_clicked)
         self.reset_btn.clicked.connect(self._on_reset_clicked)
@@ -483,6 +582,8 @@ class SeedVaultTab(QWidget):
         self.remove_row_btn.setStyleSheet(_btn_style(_COLOR_DARK_RED))
         self.copy_to_reader_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
         self.save_btn.setStyleSheet(_btn_style(_COLOR_DARK_GREEN))
+        for btn in (self.remove_row_btn, self.copy_to_reader_btn, self.save_btn):
+            btn.setFixedHeight(_STANDARD_BTN_HEIGHT)
         self.remove_row_btn.clicked.connect(self._on_remove_row_clicked)
         self.copy_to_reader_btn.clicked.connect(self._on_copy_to_reader_clicked)
         self.save_btn.clicked.connect(self._on_save_clicked)
@@ -569,7 +670,7 @@ class SeedVaultTab(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("raron's TTS Reader v0.45 (2026.07.08)")
+        self.setWindowTitle(_PROGRAMTITLE)
         self.resize(820, 600)
 
         self.chunks: list[Chunk] = []
@@ -638,6 +739,11 @@ class MainWindow(QMainWindow):
         self.voice_combo.lineEdit().setPlaceholderText(
             "Pick a voice, or type a custom one…"
         )
+        # Capped (rather than left to stretch freely) so there's room for
+        # the Lock seed checkbox alongside it without crowding the row --
+        # it can still be typed into for a longer custom voice name, the
+        # text just scrolls within the box.
+        self.voice_combo.setMaximumWidth(160)
         self.refresh_voices_btn = QPushButton("⟳")
         self.refresh_voices_btn.setToolTip(
             "Fetch the voice list from KoboldCpp (/api/extra/speakers_list)"
@@ -665,6 +771,11 @@ class MainWindow(QMainWindow):
         self.randomize_seed_btn.setFixedWidth(32)
         self.randomize_seed_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
         self.randomize_seed_btn.clicked.connect(self._on_randomize_seed_clicked)
+        self.lock_seed_checkbox = QCheckBox("Lock seed")
+        self.lock_seed_checkbox.setToolTip(
+            "Keep the current seed across new plays instead of randomizing "
+            "it each time (resuming from pause never re-randomizes it either way)"
+        )
         self.store_seed_btn = QPushButton("Store seed")
         self.store_seed_btn.setToolTip(
             "Save the current voice + seed as a row in the Seed Vault tab"
@@ -677,6 +788,7 @@ class MainWindow(QMainWindow):
         voice_row.addWidget(seed_label)
         voice_row.addWidget(self.seed_edit)
         voice_row.addWidget(self.randomize_seed_btn)
+        voice_row.addWidget(self.lock_seed_checkbox)
         voice_row.addWidget(self.store_seed_btn)
         form.addRow("Voice:", voice_row)
 
@@ -686,6 +798,7 @@ class MainWindow(QMainWindow):
         self.text_edit = ZoomableTextEdit()
         self.text_edit.setPlaceholderText("Paste or type the text you want read aloud... (Ctrl+scroll to resize text)")
         self.text_edit.textChanged.connect(self._on_text_changed)
+        self.text_edit.file_dropped.connect(self._on_file_dropped)
         layout.addWidget(self.text_edit)
 
         # Status label
@@ -700,7 +813,29 @@ class MainWindow(QMainWindow):
         self.forward_btn = QPushButton("⏭ Forward")
         self.stop_btn = QPushButton("⏹ Stop")
         self.save_btn = QPushButton("💾 Save Audio")
+
+        # Each button's full look (enabled color + its own muted disabled
+        # color) is set once, here, via QPushButton:disabled -- so toggling
+        # availability later is just a setEnabled() call, no restyling.
         self.play_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
+        self.rewind_btn.setStyleSheet(_btn_style(_COLOR_DARK_AMBER))
+        self.forward_btn.setStyleSheet(_btn_style(_COLOR_DARK_AMBER))
+        self.stop_btn.setStyleSheet(_btn_style(_COLOR_DARK_RED))
+        self.save_btn.setStyleSheet(_btn_style(_COLOR_DARK_GREEN))
+
+        # Fixed heights instead of leaving buttons to size themselves off
+        # their own text: different glyphs (▶ ⏮ ⏭ ⏹ 💾, plus "Play" vs
+        # "Pause" vs "Resume" on the same button) have different font
+        # metrics, so auto-sizing made buttons wobble in height depending
+        # on their current label. The transport buttons get a shorter
+        # fixed height and the two end buttons (Play, Save Audio) a
+        # taller one; combined with AlignTop below, that's what makes the
+        # end buttons sit a bit lower/taller than the middle ones -- on
+        # purpose now, and consistent regardless of label.
+        for btn in (self.rewind_btn, self.forward_btn, self.stop_btn):
+            btn.setFixedHeight(_TRANSPORT_BTN_HEIGHT)
+        for btn in (self.play_btn, self.save_btn):
+            btn.setFixedHeight(_TRANSPORT_END_BTN_HEIGHT)
 
         self.play_btn.clicked.connect(self._on_play_pause_clicked)
         self.rewind_btn.clicked.connect(self._on_rewind_clicked)
@@ -709,6 +844,7 @@ class MainWindow(QMainWindow):
         self.save_btn.clicked.connect(self._on_save_clicked)
         self._set_save_audio_ready(False)
 
+        controls.setAlignment(Qt.AlignTop)
         for btn in (self.play_btn, self.rewind_btn,
                     self.forward_btn, self.stop_btn, self.save_btn):
             controls.addWidget(btn)
@@ -727,18 +863,14 @@ class MainWindow(QMainWindow):
         self.rewind_btn.setEnabled(playing)
         self.forward_btn.setEnabled(playing)
         self.stop_btn.setEnabled(playing)
-        amber_style = _btn_style(_COLOR_DARK_AMBER) if playing else ""
-        self.rewind_btn.setStyleSheet(amber_style)
-        self.forward_btn.setStyleSheet(amber_style)
-        self.stop_btn.setStyleSheet(_btn_style(_COLOR_DARK_RED) if playing else "")
         self.text_edit.setReadOnly(playing)
 
     def _set_save_audio_ready(self, ready: bool):
-        """Enables/disables Save Audio and colors it to match: dark green
-        once there's audio ready to save, standard grayed-out look while
-        there isn't (rather than a distracting color for "not ready")."""
+        """Enables/disables Save Audio. Its color (dark green once ready,
+        a muted grey-green while there isn't audio to save yet) is baked
+        into its stylesheet's :disabled state, so this only ever needs to
+        flip setEnabled()."""
         self.save_btn.setEnabled(ready)
-        self.save_btn.setStyleSheet(_btn_style(_COLOR_DARK_GREEN) if ready else "")
 
     # ---- voice discovery ----------------------------------------------------
 
@@ -796,6 +928,7 @@ class MainWindow(QMainWindow):
         if voice:
             self.voice_combo.setCurrentText(voice)
         self.seed_edit.setText(seed)
+        self.lock_seed_checkbox.setChecked(True)
         self.status_label.setText(f"Loaded seed {seed} from Seed Vault")
 
     # ---- transport handlers -----------------------------------------------
@@ -817,6 +950,12 @@ class MainWindow(QMainWindow):
         if not text.strip():
             QMessageBox.information(self, "No text", "Paste some text first.")
             return
+
+        # A fresh play (as opposed to resuming from pause, which goes
+        # through toggle_pause in _on_play_pause_clicked and never reaches
+        # here) gets a new random seed unless the user's locked it in.
+        if not self.lock_seed_checkbox.isChecked():
+            self.seed_edit.setText(str(random.randint(0, 2**31 - 1)))
 
         self.chunks = chunk_text(text)
         if not self.chunks:
@@ -974,6 +1113,22 @@ class MainWindow(QMainWindow):
         self._set_error_style(False)
         n = len(self.text_edit.toPlainText())
         self.status_label.setText(f"{n} Char{'s' if n != 1 else ''}")
+
+    def _on_file_dropped(self, path: str):
+        """Reads a dropped file as text and loads it into the box,
+        replacing whatever was there. Decoding errors fall back to the
+        replacement character rather than raising, since a stray
+        non-UTF-8 byte shouldn't block loading an otherwise-readable file
+        -- this is meant for plain-text notes/articles, not arbitrary
+        binary formats."""
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except OSError as e:
+            QMessageBox.warning(self, "Couldn't open file", f"{path}\n\n{e}")
+            return
+        self.text_edit.setPlainText(content)
+        self.status_label.setText(f"Loaded {path}")
 
     def _render_time_str(self, total: int) -> str:
         """'Rendering' here means KoboldCpp synthesizing the remaining
@@ -1166,6 +1321,24 @@ class MainWindow(QMainWindow):
             cursor.setPosition(chunk.spans[-1][1])
             self.text_edit.setTextCursor(cursor)
             self.text_edit.ensureCursorVisible()
+            self._scroll_to_keep_highlight_comfortable()
+
+    def _scroll_to_keep_highlight_comfortable(self):
+        """ensureCursorVisible() only nudges the view just enough to keep
+        the cursor on-screen at all, which tends to leave it hugging the
+        bottom edge during playback. Once it's drifted past 3/4 of the way
+        down the textbox, scroll further so it settles at 1/4 from the
+        top instead -- giving more of the upcoming text room to be seen
+        ahead of time. Left alone if there isn't enough text below to
+        actually scroll that far."""
+        viewport_height = self.text_edit.viewport().height()
+        cursor_top = self.text_edit.cursorRect().top()
+        if cursor_top < viewport_height * 3 / 4:
+            return
+        scrollbar = self.text_edit.verticalScrollBar()
+        target_top = viewport_height / 4
+        new_value = scrollbar.value() + (cursor_top - target_top)
+        scrollbar.setValue(int(min(scrollbar.maximum(), max(scrollbar.minimum(), new_value))))
 
     def _clear_highlight(self):
         self.text_edit.setExtraSelections([])

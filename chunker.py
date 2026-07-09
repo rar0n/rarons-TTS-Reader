@@ -15,6 +15,12 @@ Plain-text-specific handling on top of that:
     every line would get spoken as if it were its own sentence.
   - Two or more consecutive newlines ARE treated as a break (a paragraph
     end), with a longer pause than a regular sentence.
+  - A single newline followed by 2+ consecutive spaces/tabs (i.e. the next
+    line is indented) is ALSO treated as a paragraph-level break, even
+    though there's only one newline. This covers text that marks new
+    paragraphs with an indent instead of a blank line -- without this,
+    it would just be folded into the previous sentence as a word-space
+    like any other line-wrapped newline.
   - A hyphen immediately followed by a newline, immediately followed by a
     word character (e.g. "mes-\\nsage", the classic paginated-text word
     wrap) is treated as a soft hyphen: the "-\\n" is removed entirely so
@@ -23,21 +29,39 @@ Plain-text-specific handling on top of that:
     very long stretch (100+ words -- think a giant unpunctuated pasted
     paragraph) gets force-split near its midpoint on a word boundary, so
     we never hand KoboldCpp one enormous request.
-  - Runs of spaces/tabs collapse to a single space, and a leading/trailing
-    one on a wrapped line (i.e. indentation) is dropped entirely -- the
-    newline-to-space normalization above already supplies the separator.
+  - Runs of spaces/tabs/underscores collapse to a single space, and a
+    leading/trailing one on a word (i.e. indentation, or a stray "_" at
+    the edge of an identifier) is dropped entirely -- the newline-to-space
+    normalization above already supplies the separator between words, and
+    KoboldCpp stutters/mispronounces on literal underscores (snake_case
+    identifiers, "___" markdown-style separators, etc.) the same way it
+    does on double spaces.
+  - Runs of 3+ consecutive ALL-CAPS words (legal boilerplate, warning
+    banners, etc.) are lowercased before being sent to the TTS engine --
+    KoboldCpp stutters on long shouted stretches and can even time the
+    request out. A lone acronym, or two back-to-back (e.g. "the FBI and
+    CIA"), is left alone rather than being flattened.
   - Runs of the same punctuation mark collapse to a single mark (e.g.
     "......" or ",,,,,,,,"), *except* runs that match a recognized
     narrative-emphasis pattern -- an ellipsis ("...") or a doubled/tripled
     "!"/"?" -- which are left alone since they're probably intentional.
   - An http(s) URL is matched as one atomic token instead of being torn
-    apart by the punctuation/word rules above. Any enclosing "<" "/" ">"
-    (the classic "<https://example.com>" plain-text convention) are
-    dropped, and "." within the URL is spelled out as " dot " so it reads
-    naturally and doesn't get mistaken for a sentence end. A trailing
-    sentence-punctuation character right after a URL (the period in
-    "...see https://example.com.") is left for the normal tokenizer to
-    handle as its own token, not swallowed into the URL.
+    apart by the punctuation/word rules above. Enclosing "<" and ">" (the
+    classic "<https://example.com>" plain-text convention) are dropped,
+    as is the "http://"/"https://" scheme itself -- it reads aloud as an
+    awkward literal "colon slash slash" that KoboldCpp stutters on right
+    before the domain, and there's no need to hear it spoken anyway. "."
+    is spelled out as " dot " and any remaining "/" (a path after the
+    domain) becomes a plain space, so the whole thing reads as separate
+    words instead of getting mistaken for a sentence end or read as
+    literal punctuation. A trailing sentence-punctuation character right
+    after a URL (the period in "...see https://example.com.") is left for
+    the normal tokenizer to handle as its own token, not swallowed into
+    the URL.
+  - A "," or "." embedded in a run of digits ("0.03", "1,000,000", even a
+    doubled-up "100,,000") is kept as part of that number instead of being
+    read as a clause/sentence end -- a real sentence-ender right after a
+    number ("It costs 5.") is unaffected.
 
 Because the text sent to the TTS engine is now a *normalized* version of
 the source (newlines swapped for spaces, hyphens removed, etc.), a chunk
@@ -113,9 +137,11 @@ NARRATIVE_PUNCT_RUN_LENGTHS = {
 # joins, plain single newlines, clause/sentence punctuation, and runs of
 # ordinary text. Alternatives are tried in this order at each position, so
 # more specific patterns (paragraph break, hyphen-join) win over the
-# generic single-newline case.
+# generic single-newline case. "Paragraph break" itself matches either a
+# real blank line (2+ newlines) or a single newline followed by 2+
+# spaces/tabs (an indented next line) -- both get treated the same way.
 _TOKEN_RE = re.compile(
-    r"(?P<parabreak>\n[ \t]*\n[ \t\n]*)"
+    r"(?P<parabreak>\n[ \t]*\n[ \t\n]*|\n[ \t]{2,})"
     r"|(?P<hyphenjoin>-\n(?=\w))"
     r"|(?P<linebreak>\n)"
     # http(s) URL, optionally wrapped in <...> (the common plain-text
@@ -125,12 +151,23 @@ _TOKEN_RE = re.compile(
     # real sentence-ender or closing paren right after the URL is left for
     # the normal tokenizer to pick up instead of being swallowed here.
     r"|(?P<url><?(?:https?://)[^\s<>]*[^\s<>.,;:!?)\]]>?)"
+    # A run of digits containing embedded "," and/or "." -- thousands
+    # separators ("1,000,000"), decimals ("0.03"), or even a stray doubled
+    # separator ("100,,000") -- tried before punct/word so those embedded
+    # marks are never mistaken for a clause/sentence end. Requires a digit
+    # on both sides of every embedded run of separators, so a real
+    # sentence-ending period right after a number ("It costs 5.") still
+    # falls through to word + punct as normal.
+    r"|(?P<number>\d+(?:[.,]+\d+)+)"
     r"|(?P<punct>[,;:.!?\u2014\u2013])"
     # A run of ordinary characters -- but each step first checks it isn't
-    # about to walk into a "-\n<word char>" wrap (left for hyphenjoin) or
-    # the start of a URL (left for the url alternative above), so those
-    # don't get eaten here as plain word characters.
-    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)[^\n,;:.!?\u2014\u2013])+)"
+    # about to walk into a "-\n<word char>" wrap (left for hyphenjoin), the
+    # start of a URL (left for the url alternative above), or the start of
+    # a numeric-separator run like "0.03"/"1,000,000" (left for the number
+    # alternative above -- without this check, word would already have
+    # swallowed straight through the leading digit before the tokenizer's
+    # scan position ever reached it, and number would never get a turn).
+    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)(?!\d+(?:[.,]+\d+)+)[^\n,;:.!?\u2014\u2013])+)"
 )
 
 
@@ -194,8 +231,15 @@ class _Builder:
 
 
 def _normalize_word(raw: str) -> str:
-    """Collapse runs of spaces/tabs in a matched `word` token down to a
-    single space, then drop a leading or trailing one entirely.
+    """Collapse runs of spaces/tabs/underscores in a matched `word` token
+    down to a single space, then drop a leading or trailing one entirely.
+
+    Underscores are folded in here too (not just spaces/tabs) because
+    KoboldCpp stutters or mispronounces on literal "_" characters --
+    common in snake_case identifiers or "___" markdown-style separators
+    pasted from code or notes. One underscore or a run of several are
+    both just a word separator as far as TTS is concerned, same as
+    multiple spaces.
 
     Inter-token spacing is already handled separately by `pending_glue`
     (set from punctuation and single-newline handling), so a leftover
@@ -204,7 +248,42 @@ def _normalize_word(raw: str) -> str:
     real word of a wrapped line always land at the start of a `word` token
     (indentation right after a *paragraph* break is discarded even
     earlier, by `_TOKEN_RE`'s parabreak alternative itself)."""
-    return re.sub(r"[ \t]+", " ", raw).strip(" ")
+    return re.sub(r"[ \t_]+", " ", raw).strip(" ")
+
+
+# A run of this many or more consecutive ALL-CAPS words reads as shouted
+# text (legal boilerplate, warning banners, ...) rather than a genuine
+# acronym or two -- and KoboldCpp stutters badly on long stretches of it,
+# sometimes badly enough to time the request out entirely. Two ALL-CAPS
+# words in a row (e.g. "the FBI and CIA") is common enough as ordinary
+# acronym use that it's left alone.
+_SHOUT_RUN_MIN_WORDS = 3
+
+
+def _is_shouty_word(word: str) -> bool:
+    return word.isupper() and any(ch.isalpha() for ch in word)
+
+
+def _tame_shouting(text: str) -> str:
+    """Lowercases runs of `_SHOUT_RUN_MIN_WORDS`+ consecutive ALL-CAPS
+    words in `text`, leaving shorter all-caps stretches (a lone acronym,
+    or a couple of them back to back) untouched. Splitting on `(\\s+)`
+    keeps the whitespace tokens themselves, so the original spacing is
+    reproduced exactly aside from the casing change."""
+    tokens = re.split(r"(\s+)", text)
+    word_idxs = [i for i, t in enumerate(tokens) if i % 2 == 0 and t]
+
+    i = 0
+    while i < len(word_idxs):
+        j = i
+        while j < len(word_idxs) and _is_shouty_word(tokens[word_idxs[j]]):
+            j += 1
+        if j - i >= _SHOUT_RUN_MIN_WORDS:
+            for k in range(i, j):
+                idx = word_idxs[k]
+                tokens[idx] = tokens[idx].lower()
+        i = j if j > i else i + 1
+    return "".join(tokens)
 
 
 def _collapse_punct_run(char: str, count: int) -> str:
@@ -216,15 +295,25 @@ def _collapse_punct_run(char: str, count: int) -> str:
 
 
 def _humanize_url(raw: str) -> str:
-    """Strip a matched URL's enclosing <...> wrapper (if present) and
-    spell out "." as " dot " so KoboldCpp reads a domain like "fsf.org" as
-    "fsf dot org" instead of pausing on it like a sentence end."""
+    """Strip a matched URL's enclosing <...> wrapper (if present), drop
+    the "http://"/"https://" scheme, and spell out "." as " dot " so
+    KoboldCpp reads a domain like "fsf.org" as "fsf dot org" instead of
+    pausing on it like a sentence end.
+
+    The scheme is dropped rather than spoken, since "https://" comes out
+    as a literal, awkward "colon slash slash" that KoboldCpp stutters on
+    right before the domain -- and nobody needs to hear it read aloud
+    anyway. Any remaining "/" (a path after the domain, e.g. "site.com/
+    about") becomes a plain space rather than a literal slash, for the
+    same reason "." becomes " dot " instead of being read as-is."""
     core = raw
     if core.startswith("<"):
         core = core[1:]
     if core.endswith(">"):
         core = core[:-1]
-    return re.sub(r"\s+", " ", core.replace(".", " dot ")).strip()
+    core = re.sub(r"^https?://", "", core)
+    core = core.replace(".", " dot ").replace("/", " ")
+    return re.sub(r"\s+", " ", core).strip()
 
 
 def _tokenize(text: str) -> List[Chunk]:
@@ -296,7 +385,7 @@ def _tokenize(text: str) -> List[Chunk]:
             # normally ends a chunk.
             chunks.append(builder.build(URL_PAUSE_MS))
             builder = _Builder()
-        elif kind == "word":
+        elif kind in ("word", "number"):
             raw_word = m.group()
             leading_ws = raw_word[:1] in (" ", "\t")
             trailing_ws = raw_word[-1:] in (" ", "\t")
@@ -485,6 +574,15 @@ def chunk_text(text: str) -> List[Chunk]:
                 pause_ms=last.pause_ms,
                 text_ranges=prev.text_ranges + [(ts + offset, te + offset) for ts, te in last.text_ranges],
             )
+
+    # Done last, on each chunk's fully-assembled text (line-wrap newlines
+    # already folded into spaces by this point) -- doing it earlier, on
+    # each raw per-line token from `_tokenize`, would miss a shout run that
+    # happens to be split across a wrapped line. Lowercasing is a pure
+    # case change, so it can't disturb `spans`/`text_ranges` (same string
+    # length either way).
+    for c in final:
+        c.text = _tame_shouting(c.text)
     return final
 
 
