@@ -2,7 +2,7 @@
 Splits arbitrary text into small, speakable chunks for TTS.
 
 Why this exists: feeding a whole paragraph to KoboldCpp's TTS in one request
-cause voice drift, speed changes, and cutoffs on long inputs.
+may cause it to run out of context memory.
 Splitting at sentence/clause boundaries and re-inserting silence ourselves
 (rather than relying on the model to imply a pause) fixes these problems,
 gives us better control over speech pauses, and easy rewind/forward control.
@@ -45,13 +45,13 @@ Plain-text-specific handling on top of that:
     "......" or ",,,,,,,,"), *except* runs that match a recognized
     narrative-emphasis pattern -- an ellipsis ("...") or a doubled/tripled
     "!"/"?" -- which are left alone since they're probably intentional.
+
+  - The following URL stuff is not necessarily accurate any longer:
   - An http(s) URL is matched as one atomic token instead of being torn
     apart by the punctuation/word rules above. Enclosing "<" and ">" (the
     classic "<https://example.com>" plain-text convention) are dropped,
-    as is the "http://"/"https://" scheme itself -- it reads aloud as an
-    awkward literal "colon slash slash" that KoboldCpp stutters on right
-    before the domain, and there's no need to hear it spoken anyway. "."
-    is spelled out as " dot " and any remaining "/" (a path after the
+    as is the "http://"/"https://" scheme itself.
+    "." is spelled out as " dot " and any remaining "/" (a path after the
     domain) becomes a plain space, so the whole thing reads as separate
     words instead of getting mistaken for a sentence end or read as
     literal punctuation. A trailing sentence-punctuation character right
@@ -133,15 +133,35 @@ NARRATIVE_PUNCT_RUN_LENGTHS = {
     "?": {2, 3},      # "??" / "???"
 }
 
+# Unicode ranges treated as "emoji" for the purposes of _TOKEN_RE's
+# emoji-line-break rule below. Deliberately broad (covers the main emoji
+# blocks plus older symbol/dingbat/arrow ranges like "\u25BA" / "\u2600")
+# rather than an exhaustive emoji database -- false positives here just
+# mean an unusual symbol-led line gets its own chunk, which is harmless.
+_EMOJI_CLASS = (
+    r"\U0001F1E6-\U0001F1FF"  # regional indicators (flag emoji)
+    r"\U0001F300-\U0001FAFF"  # misc symbols/pictographs through symbols-extended-A
+    r"\u2190-\u21FF"          # arrows
+    r"\u2300-\u23FF"          # misc technical (e.g. \u23F0 alarm clock)
+    r"\u25A0-\u25FF"          # geometric shapes (e.g. \u25BA \u25CF)
+    r"\u2600-\u27BF"          # misc symbols & dingbats
+    r"\u2B00-\u2BFF"          # misc symbols & arrows
+)
+
 # Tokenizes the source text into: paragraph breaks, soft-hyphen line-wrap
 # joins, plain single newlines, clause/sentence punctuation, and runs of
 # ordinary text. Alternatives are tried in this order at each position, so
 # more specific patterns (paragraph break, hyphen-join) win over the
-# generic single-newline case. "Paragraph break" itself matches either a
-# real blank line (2+ newlines) or a single newline followed by 2+
-# spaces/tabs (an indented next line) -- both get treated the same way.
+# generic single-newline case. "Paragraph break" itself matches a real
+# blank line (2+ newlines), a single newline followed by 2+ spaces/tabs
+# (an indented next line), or a single newline immediately followed by an
+# emoji -- e.g. a line that opens with "\u25B6" or similar reads as its own
+# beat/bullet rather than a continuation of the previous line, even
+# without any blank line or indentation to mark it. The emoji character
+# itself is left for the following `word` token to pick up (lookahead
+# only, nothing consumed here) so it still gets voiced.
 _TOKEN_RE = re.compile(
-    r"(?P<parabreak>\n[ \t]*\n[ \t\n]*|\n[ \t]{2,})"
+    rf"(?P<parabreak>\n[ \t]*\n[ \t\n]*|\n[ \t]{{2,}}|\n(?=[{_EMOJI_CLASS}]))"
     r"|(?P<hyphenjoin>-\n(?=\w))"
     r"|(?P<linebreak>\n)"
     # http(s) URL, optionally wrapped in <...> (the common plain-text
@@ -149,7 +169,9 @@ _TOKEN_RE = re.compile(
     # never get carved up as ordinary sentence punctuation. The trailing
     # character class excludes common sentence punctuation/brackets so a
     # real sentence-ender or closing paren right after the URL is left for
-    # the normal tokenizer to pick up instead of being swallowed here.
+    # the normal tokenizer to pick up instead of being swallowed here --
+    # see the "punct" handling below for how a "." right after a URL gets
+    # turned into a real sentence-end instead of a stray fragment.
     r"|(?P<url><?(?:https?://)[^\s<>]*[^\s<>.,;:!?)\]]>?)"
     # A run of digits containing embedded "," and/or "." -- thousands
     # separators ("1,000,000"), decimals ("0.03"), or even a stray doubled
@@ -159,6 +181,14 @@ _TOKEN_RE = re.compile(
     # sentence-ending period right after a number ("It costs 5.") still
     # falls through to word + punct as normal.
     r"|(?P<number>\d+(?:[.,]+\d+)+)"
+    # A "." or "," between two numbers with a single space in between --
+    # e.g. "1. 2. 3." or "100,000, 200,000" -- read as a spoken list, not
+    # a thousand separator (can't be, there's a space) and not a genuine
+    # clause/sentence end either. Tried before the generic punct
+    # alternative below so this gets the lighter "list" pause instead of
+    # a full stop. Lookbehind/lookahead only, so the digits on either
+    # side are left for `number`/`word` to tokenize as normal.
+    r"|(?P<numlistsep>(?<=\d)[.,](?= \d))"
     r"|(?P<punct>[,;:.!?\u2014\u2013])"
     # A run of ordinary characters -- but each step first checks it isn't
     # about to walk into a "-\n<word char>" wrap (left for hyphenjoin), the
@@ -295,15 +325,16 @@ def _collapse_punct_run(char: str, count: int) -> str:
 
 
 def _humanize_url(raw: str) -> str:
-    """Strip a matched URL's enclosing <...> wrapper (if present), drop
-    the "http://"/"https://" scheme, and spell out "." as " dot " so
-    KoboldCpp reads a domain like "fsf.org" as "fsf dot org" instead of
-    pausing on it like a sentence end.
+    """Strip a matched URL's enclosing <...> wrapper (if present), speak
+    the "http"/"https" scheme, and spell out "." as " dot " so KoboldCpp
+    reads a domain like "fsf.org" as "fsf dot org" instead of pausing on
+    it like a sentence end.
 
-    The scheme is dropped rather than spoken, since "https://" comes out
-    as a literal, awkward "colon slash slash" that KoboldCpp stutters on
-    right before the domain -- and nobody needs to hear it read aloud
-    anyway. Any remaining "/" (a path after the domain, e.g. "site.com/
+    Only the "://" separator itself is dropped (turned into a plain
+    space) rather than spoken -- coming out as a literal, awkward "colon
+    slash slash" is what KoboldCpp stutters on right before the domain --
+    but the scheme word itself ("http"/"https") is kept so the whole URL
+    is heard. Any remaining "/" (a path after the domain, e.g. "site.com/
     about") becomes a plain space rather than a literal slash, for the
     same reason "." becomes " dot " instead of being read as-is."""
     core = raw
@@ -311,7 +342,7 @@ def _humanize_url(raw: str) -> str:
         core = core[1:]
     if core.endswith(">"):
         core = core[:-1]
-    core = re.sub(r"^https?://", "", core)
+    core = re.sub(r"^(https?)://", r"\1 ", core)
     core = core.replace(".", " dot ").replace("/", " ")
     return re.sub(r"\s+", " ", core).strip()
 
@@ -323,6 +354,13 @@ def _tokenize(text: str) -> List[Chunk]:
     builder = _Builder()
     pending_glue = ""
     pending_punct: Optional[dict] = None
+    # Position right after the most recently closed URL chunk, and that
+    # chunk's index in `chunks` -- used so a "." immediately following a
+    # URL (no whitespace in between) can upgrade the URL chunk's pause to
+    # a real sentence-end instead of becoming its own stray one-character
+    # fragment (see the "punct" handling below).
+    last_url_end: Optional[int] = None
+    last_url_chunk_idx: Optional[int] = None
 
     def flush_punct() -> None:
         """Close out whatever punctuation run is in progress, if any,
@@ -343,6 +381,25 @@ def _tokenize(text: str) -> List[Chunk]:
         if kind == "punct":
             ch = m.group()
             if (
+                ch == "."
+                and last_url_chunk_idx is not None
+                and m.start() == last_url_end
+            ):
+                # A "." landing directly against the end of the URL we
+                # just closed out (no whitespace in between) -- treat it
+                # as that sentence actually ending here, by upgrading the
+                # URL chunk's own pause, rather than letting a lone "."
+                # become its own stray fragment that then has to be
+                # merged/glued back in elsewhere.
+                chunks[last_url_chunk_idx].pause_ms = max(
+                    chunks[last_url_chunk_idx].pause_ms, PAUSE_MAP["."]
+                )
+                last_url_chunk_idx = None
+                last_url_end = None
+                continue
+            last_url_chunk_idx = None
+            last_url_end = None
+            if (
                 pending_punct is not None
                 and pending_punct["char"] == ch
                 and pending_punct["end"] == m.start()
@@ -356,8 +413,28 @@ def _tokenize(text: str) -> List[Chunk]:
                 pending_punct = {"char": ch, "start": m.start(), "end": m.end(), "count": 1}
             continue
 
-        # Any non-punct token means a punctuation run (if any) is over.
+        if kind == "numlistsep":
+            # A "." or "," between two numbers with a single space -- read
+            # as a spoken list item separator, not a thousand separator
+            # (there's a space, so `number` above didn't match) and not a
+            # genuine sentence end either. Closes the chunk out with a
+            # light, comma-weight pause (same idea as the "url" handling
+            # below) rather than falling through to punct's full-stop
+            # pause for ".".
+            last_url_chunk_idx = None
+            last_url_end = None
+            flush_punct()
+            builder.add(m.group(), m.start(), m.end(), pending_glue)
+            pending_glue = ""
+            chunks.append(builder.build(PAUSE_MAP.get(",", DEFAULT_PAUSE_MS)))
+            builder = _Builder()
+            continue
+
+        # Any non-punct, non-numlistsep token means a punctuation run (if
+        # any) is over, and we're no longer immediately after a URL.
         flush_punct()
+        last_url_chunk_idx = None
+        last_url_end = None
 
         if kind == "parabreak":
             if not builder.is_empty():
@@ -385,6 +462,8 @@ def _tokenize(text: str) -> List[Chunk]:
             # normally ends a chunk.
             chunks.append(builder.build(URL_PAUSE_MS))
             builder = _Builder()
+            last_url_end = m.end()
+            last_url_chunk_idx = len(chunks) - 1
         elif kind in ("word", "number"):
             raw_word = m.group()
             leading_ws = raw_word[:1] in (" ", "\t")

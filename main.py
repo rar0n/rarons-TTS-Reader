@@ -39,15 +39,14 @@ Note: Saving as mp3 might take a little while, depending on size.
 
 Note 2: Most of the source code comments is Claude's. Some (not all) of the
         reasoning behind _why_ something is done is Claude's assumption and
-        a bit "off" (usually not something I explicitly said).
+        a bit off (usually not something I explicitly said).
         Program logic seems solid though (afaik).
 
 More in README.md
 
     2026 raron ( But mostly Claude :) )
 
-That is all.
-"""
+That is all."""
 
 import sys
 import os
@@ -66,7 +65,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QLineEdit, QLabel, QFormLayout, QMessageBox,
     QComboBox, QFileDialog, QTabWidget, QSpinBox, QPlainTextEdit,
     QGroupBox, QScrollArea, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QCheckBox,
+    QCheckBox, QSizePolicy,
 )
 
 import chunker  # imported as a module (not just `from chunker import ...`) so the
@@ -78,7 +77,7 @@ from synth_worker import SynthWorker
 from audio_engine import AudioEngine, PlaybackState
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader v0.50 (2026.07.09)"
+_PROGRAMTITLE = "raron's TTS Reader v0.55 (2026.07.09)"
 
 # Where chunking settings get saved to / auto-loaded from on startup.
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
@@ -172,6 +171,13 @@ def _with_extension(path: str, ext: str) -> str:
     return base + ext
 
 
+def _print_error(message: str):
+    """Echoes an error-status line to stdout/terminal, in addition to
+    wherever it's also shown in the GUI -- useful when running from a
+    console and the GUI itself isn't (or can't be) watched closely."""
+    print(f"[ERROR] {message}")
+
+
 def _load_json_dict(path: Path) -> dict:
     """Reads a JSON file into a dict, returning {} if it's missing or
     doesn't parse as an object."""
@@ -197,6 +203,42 @@ def _save_json_merged(path: Path, updates: dict):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
+class ElidingLabel(QLabel):
+    """A QLabel that elides overly-long text with a trailing "…" instead
+    of forcing the window to grow to fit it -- a plain QLabel's minimum
+    size hint tracks its full (unwrapped) text width, which was making
+    the window balloon out on long status lines (lots of stats packed
+    onto one line, or a long file path). The full text is still always
+    available via the tooltip.
+
+    A fixed/expanding-width sibling widget in the same layout row would
+    normally stretch to claim the horizontal size Ignored below gives up,
+    but the status label always sits alone in its own row here, so that's
+    not a concern."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._full_text = ""
+        # Ignored (rather than the QLabel default of Preferred) means this
+        # widget's size hint no longer sets a floor on the window's
+        # minimum width -- it can be squeezed down to elide instead of
+        # forcing the layout to grow.
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
+    def setText(self, text):
+        self._full_text = text
+        self.setToolTip(text)
+        super().setText(self._elided(text))
+
+    def _elided(self, text: str) -> str:
+        return self.fontMetrics().elidedText(text, Qt.ElideRight, max(self.width(), 0))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._full_text:
+            super().setText(self._elided(self._full_text))
+
+
 class ZoomableTextEdit(QTextEdit):
     """A QTextEdit where holding Ctrl while scrolling changes the font size
     instead of scrolling the view -- Qt doesn't expose this as a setting,
@@ -213,9 +255,51 @@ class ZoomableTextEdit(QTextEdit):
 
     file_dropped = Signal(str)  # emits the dropped file's path
 
+    # Transport shortcuts usable while focus is in the text box: Ctrl+Enter
+    # to start playback, and -- once playback has made the box read-only --
+    # Space/Left/Right/Esc for pause-resume/rewind/forward/stop. Emitted as
+    # signals rather than acted on directly here, so MainWindow's existing
+    # button handlers stay the single source of truth for what each action
+    # actually does.
+    play_requested = Signal()
+    pause_resume_requested = Signal()
+    rewind_requested = Signal()
+    forward_requested = Signal()
+    stop_requested = Signal()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setAcceptDrops(True)
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key in (Qt.Key_Return, Qt.Key_Enter) and event.modifiers() & Qt.ControlModifier:
+            self.play_requested.emit()
+            event.accept()
+            return
+        if self.isReadOnly():
+            # Read-only only while playback is active -- so these keys are
+            # transport shortcuts here rather than the text-editing keys
+            # they'd normally be (space inserting a space, arrows moving
+            # the cursor, etc.), which don't apply while the box is just a
+            # read-only "subtitle" view anyway.
+            if key == Qt.Key_Space:
+                self.pause_resume_requested.emit()
+                event.accept()
+                return
+            if key == Qt.Key_Left:
+                self.rewind_requested.emit()
+                event.accept()
+                return
+            if key == Qt.Key_Right:
+                self.forward_requested.emit()
+                event.accept()
+                return
+            if key == Qt.Key_Escape:
+                self.stop_requested.emit()
+                event.accept()
+                return
+        super().keyPressEvent(event)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.ControlModifier:
@@ -404,6 +488,28 @@ class SettingsTab(QWidget):
         abbrev_layout.addWidget(self.abbrev_edit)
         layout.addWidget(abbrev_group)
 
+        # -- Scrolling --
+        scroll_group = QGroupBox("Scrolling")
+        scroll_form = QFormLayout(scroll_group)
+        self.scroll_margin_checkbox = QCheckBox("Scroll Margin")
+        self.scroll_margin_checkbox.setToolTip(
+            "Keep the playback highlight within a comfortable margin from "
+            "the top/bottom of the text box, auto-scrolling to compensate "
+            "-- both while playing/forwarding and while rewinding."
+        )
+        self.scroll_margin_checkbox.stateChanged.connect(self._on_field_changed)
+        scroll_form.addRow(self.scroll_margin_checkbox)
+
+        self.scroll_denominator_spin = QSpinBox()
+        self.scroll_denominator_spin.setRange(2, 20)
+        self.scroll_denominator_spin.setToolTip(
+            "Scroll Denominator (SD): the highlight is kept within 1/SD of "
+            "the text box's height from the top and bottom edges."
+        )
+        self.scroll_denominator_spin.valueChanged.connect(self._on_field_changed)
+        scroll_form.addRow("Scroll Denominator:", self.scroll_denominator_spin)
+        layout.addWidget(scroll_group)
+
         layout.addStretch(1)
 
         # -- Save / load --
@@ -424,7 +530,7 @@ class SettingsTab(QWidget):
         btn_row.addWidget(self.reset_btn)
         outer.addLayout(btn_row)
 
-        self.settings_status = QLabel("")
+        self.settings_status = ElidingLabel("")
         outer.addWidget(self.settings_status)
 
     # ---- gathering / applying / populating ---------------------------------
@@ -441,6 +547,8 @@ class SettingsTab(QWidget):
             "LONG_CHUNK_WORD_LIMIT": self.long_chunk_spin.value(),
             "MIN_CHUNK_CHARS": self.min_chars_spin.value(),
             "ABBREVIATIONS": sorted(abbrevs),
+            "SCROLL_MARGIN_ENABLED": self.scroll_margin_checkbox.isChecked(),
+            "SCROLL_DENOMINATOR": self.scroll_denominator_spin.value(),
         }
 
     @staticmethod
@@ -484,16 +592,25 @@ class SettingsTab(QWidget):
             self.min_chars_spin.setValue(int(settings["MIN_CHUNK_CHARS"]))
         if "ABBREVIATIONS" in settings:
             self.abbrev_edit.setPlainText("\n".join(sorted(settings["ABBREVIATIONS"])))
+        if "SCROLL_MARGIN_ENABLED" in settings:
+            self.scroll_margin_checkbox.setChecked(bool(settings["SCROLL_MARGIN_ENABLED"]))
+        if "SCROLL_DENOMINATOR" in settings:
+            self.scroll_denominator_spin.setValue(int(settings["SCROLL_DENOMINATOR"]))
         self._building = False
 
     def _load_from_chunker_defaults(self):
         """Used on first startup (no config file yet) -- the chunker
-        module's own current values become the shown defaults."""
+        module's own current values become the shown defaults. The two
+        scroll-margin settings aren't chunker constants, so they get a
+        plain hardcoded default here instead (off, SD=4 -- matching the
+        original fixed 1/4 margin)."""
         settings = {
             "PAUSE_MAP": dict(chunker.PAUSE_MAP),
             "LONG_CHUNK_WORD_LIMIT": chunker.LONG_CHUNK_WORD_LIMIT,
             "MIN_CHUNK_CHARS": chunker.MIN_CHUNK_CHARS,
             "ABBREVIATIONS": sorted(chunker.ABBREVIATIONS),
+            "SCROLL_MARGIN_ENABLED": False,
+            "SCROLL_DENOMINATOR": 4,
         }
         for name, _label, _tip in _OTHER_PAUSE_FIELDS:
             settings[name] = getattr(chunker, name)
@@ -512,7 +629,9 @@ class SettingsTab(QWidget):
                 self._load_from_path(DEFAULT_SETTINGS_PATH)
                 self.settings_status.setText(f"Auto-loaded settings from {DEFAULT_SETTINGS_PATH}")
             except (OSError, ValueError) as e:
-                self.settings_status.setText(f"Couldn't auto-load settings: {e}")
+                message = f"Couldn't auto-load settings: {e}"
+                self.settings_status.setText(message)
+                _print_error(message)
 
     def _load_from_path(self, path: Path):
         with open(path, "r", encoding="utf-8") as f:
@@ -528,6 +647,7 @@ class SettingsTab(QWidget):
             self._save_to_path(DEFAULT_SETTINGS_PATH)
             self.settings_status.setText(f"Saved settings to {DEFAULT_SETTINGS_PATH}")
         except OSError as e:
+            _print_error(f"Couldn't save settings: {e}")
             QMessageBox.warning(self, "Couldn't save settings", str(e))
 
     def _on_load_clicked(self):
@@ -540,6 +660,7 @@ class SettingsTab(QWidget):
             self._load_from_path(Path(path))
             self.settings_status.setText(f"Loaded settings from {path}")
         except (OSError, ValueError) as e:
+            _print_error(f"Couldn't load settings: {e}")
             QMessageBox.warning(self, "Couldn't load settings", str(e))
 
     def _on_reset_clicked(self):
@@ -592,7 +713,7 @@ class SeedVaultTab(QWidget):
         btn_row.addWidget(self.save_btn)
         layout.addLayout(btn_row)
 
-        self.status_label = QLabel("")
+        self.status_label = ElidingLabel("")
         layout.addWidget(self.status_label)
 
     # ---- row management -----------------------------------------------------
@@ -739,16 +860,21 @@ class MainWindow(QMainWindow):
         self.voice_combo.lineEdit().setPlaceholderText(
             "Pick a voice, or type a custom one…"
         )
-        # Capped (rather than left to stretch freely) so there's room for
-        # the Lock seed checkbox alongside it without crowding the row --
-        # it can still be typed into for a longer custom voice name, the
-        # text just scrolls within the box.
-        self.voice_combo.setMaximumWidth(160)
+        # Expanding (rather than a capped max width) + the stretch=1 given
+        # to it below is what makes this the *only* widget in the row that
+        # grows when the window is resized -- every other widget here gets
+        # setSizePolicy(Fixed, ...), so 100% of any extra width the row
+        # gains goes to the combo box, one-for-one with the window's own
+        # growth, while everything to its right stays pinned at a fixed
+        # distance from the window's right edge.
+        self.voice_combo.setMinimumWidth(120)
+        self.voice_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.refresh_voices_btn = QPushButton("⟳")
         self.refresh_voices_btn.setToolTip(
             "Fetch the voice list from KoboldCpp (/api/extra/speakers_list)"
         )
         self.refresh_voices_btn.setFixedWidth(32)
+        self.refresh_voices_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.refresh_voices_btn.clicked.connect(self._refresh_voices)
 
         # Seed field: pins the TTS voice for the whole playthrough when
@@ -758,6 +884,7 @@ class MainWindow(QMainWindow):
         # requests), so it starts pre-filled with a random value -- same
         # effect as leaving it blank, but visible and reusable.
         seed_label = QLabel("Seed:")
+        seed_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.seed_edit = QLineEdit()
         self.seed_edit.setPlaceholderText("Seed (blank = auto)")
         self.seed_edit.setValidator(QIntValidator(0, 2**31 - 1, self))
@@ -765,18 +892,22 @@ class MainWindow(QMainWindow):
         # plus a little slack for variable-width fonts.
         seed_width = QFontMetrics(self.seed_edit.font()).horizontalAdvance("2147483647") + 24
         self.seed_edit.setFixedWidth(seed_width)
+        self.seed_edit.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.seed_edit.setText(str(random.randint(0, 2**31 - 1)))
         self.randomize_seed_btn = QPushButton("🎲")
         self.randomize_seed_btn.setToolTip("Fill in a random seed (0 to 2^31-1)")
         self.randomize_seed_btn.setFixedWidth(32)
+        self.randomize_seed_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.randomize_seed_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
         self.randomize_seed_btn.clicked.connect(self._on_randomize_seed_clicked)
         self.lock_seed_checkbox = QCheckBox("Lock seed")
+        self.lock_seed_checkbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.lock_seed_checkbox.setToolTip(
             "Keep the current seed across new plays instead of randomizing "
             "it each time (resuming from pause never re-randomizes it either way)"
         )
         self.store_seed_btn = QPushButton("Store seed")
+        self.store_seed_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.store_seed_btn.setToolTip(
             "Save the current voice + seed as a row in the Seed Vault tab"
         )
@@ -799,10 +930,15 @@ class MainWindow(QMainWindow):
         self.text_edit.setPlaceholderText("Paste or type the text you want read aloud... (Ctrl+scroll to resize text)")
         self.text_edit.textChanged.connect(self._on_text_changed)
         self.text_edit.file_dropped.connect(self._on_file_dropped)
+        self.text_edit.play_requested.connect(self._on_play_pause_clicked)
+        self.text_edit.pause_resume_requested.connect(self._on_play_pause_clicked)
+        self.text_edit.rewind_requested.connect(self._on_rewind_clicked)
+        self.text_edit.forward_requested.connect(self._on_forward_clicked)
+        self.text_edit.stop_requested.connect(self._on_stop_clicked)
         layout.addWidget(self.text_edit)
 
         # Status label
-        self.status_label = QLabel("0 Chars")
+        self.status_label = ElidingLabel("0 Chars")
         self.status_label.setStyleSheet(_STATUS_STYLE_NORMAL)
         layout.addWidget(self.status_label)
 
@@ -907,7 +1043,7 @@ class MainWindow(QMainWindow):
 
     def _on_voices_fetch_failed(self, message: str):
         self.refresh_voices_btn.setEnabled(True)
-        self.status_label.setText(f"Couldn't fetch voices ({message}) — type one manually")
+        self._show_error_status(f"Couldn't fetch voices ({message}) — type one manually")
 
     def _on_randomize_seed_clicked(self):
         self.seed_edit.setText(str(random.randint(0, 2**31 - 1)))
@@ -1048,6 +1184,7 @@ class MainWindow(QMainWindow):
         self._set_error_style(False)
         self._sync_play_button()
         self.status_label.setText("Idle")
+        self.text_edit.setFocus()
 
     # ---- engine callbacks (run on the GUI thread via EngineBridge) -------
 
@@ -1074,9 +1211,8 @@ class MainWindow(QMainWindow):
         already stopped by the time this fires."""
         self.status_timer.stop()
         self._narration_mark_paused()
-        self._set_error_style(True)
         suffix = f" \u2022 {self._last_stats_line}" if self._last_stats_line else ""
-        self.status_label.setText(f"Playback error on chunk {idx + 1}: {message}{suffix}")
+        self._show_error_status(f"Playback error on chunk {idx + 1}: {message}{suffix}")
         self._clear_highlight()
         self._set_controls_enabled(playing=False)
         self._sync_play_button()
@@ -1086,8 +1222,7 @@ class MainWindow(QMainWindow):
         keeps going; this just flags it. If the AudioEngine ends up
         waiting on this exact chunk it'll time out and raise its own
         on_error, which fully stops playback."""
-        self._set_error_style(True)
-        self.status_label.setText(f"TTS error on chunk {idx + 1}: {message}")
+        self._show_error_status(f"TTS error on chunk {idx + 1}: {message}")
 
     def _on_chunk_synthesized(self, idx: int, wav_bytes: bytes):
         self._synth_done_count += 1
@@ -1102,6 +1237,17 @@ class MainWindow(QMainWindow):
 
     def _set_error_style(self, is_error: bool):
         self.status_label.setStyleSheet(_STATUS_STYLE_ERROR if is_error else _STATUS_STYLE_NORMAL)
+
+    def _show_error_status(self, message: str):
+        """Sets the status label's text and red error background together,
+        and echoes the same line to stdout/terminal -- the single place
+        every error-status update should go through, so a new error site
+        can't accidentally forget one half of the pair (as previously
+        happened with the "Couldn't fetch voices" message, which set the
+        text but never switched the label to its red error style)."""
+        self._set_error_style(True)
+        self.status_label.setText(message)
+        _print_error(message)
 
     def _on_text_changed(self):
         """Character count while idle. During/after playback the text box
@@ -1321,23 +1467,38 @@ class MainWindow(QMainWindow):
             cursor.setPosition(chunk.spans[-1][1])
             self.text_edit.setTextCursor(cursor)
             self.text_edit.ensureCursorVisible()
-            self._scroll_to_keep_highlight_comfortable()
+            self._scroll_to_keep_highlight_margins()
 
-    def _scroll_to_keep_highlight_comfortable(self):
+    def _scroll_to_keep_highlight_margins(self):
         """ensureCursorVisible() only nudges the view just enough to keep
-        the cursor on-screen at all, which tends to leave it hugging the
-        bottom edge during playback. Once it's drifted past 3/4 of the way
-        down the textbox, scroll further so it settles at 1/4 from the
-        top instead -- giving more of the upcoming text room to be seen
-        ahead of time. Left alone if there isn't enough text below to
-        actually scroll that far."""
+        the cursor on-screen at all, which tends to leave it hugging
+        whichever edge it approached from. Once it's drifted past the
+        1/SD margin from the bottom, scroll further so it settles at
+        1/SD from the top instead -- giving more of the upcoming text
+        room to be seen ahead of time while playing/forwarding. Symmetric
+        the other way too: once it's drifted past the 1/SD margin from
+        the top (e.g. after a rewind), scroll so it settles at 1/SD from
+        the *bottom* instead, giving more of the preceding text room to
+        be seen. Left alone if there isn't enough text in that direction
+        to actually scroll that far, and does nothing at all unless
+        "Scroll Margin" is enabled on the Settings tab."""
+        if not self.settings_tab.scroll_margin_checkbox.isChecked():
+            return
+        sd = self.settings_tab.scroll_denominator_spin.value()
+        if sd < 2:
+            return
         viewport_height = self.text_edit.viewport().height()
         cursor_top = self.text_edit.cursorRect().top()
-        if cursor_top < viewport_height * 3 / 4:
+        target_top = viewport_height / sd
+        target_bottom = viewport_height * (sd - 1) / sd
+        if cursor_top > target_bottom:
+            target = target_top
+        elif cursor_top < target_top:
+            target = target_bottom
+        else:
             return
         scrollbar = self.text_edit.verticalScrollBar()
-        target_top = viewport_height / 4
-        new_value = scrollbar.value() + (cursor_top - target_top)
+        new_value = scrollbar.value() + (cursor_top - target)
         scrollbar.setValue(int(min(scrollbar.maximum(), max(scrollbar.minimum(), new_value))))
 
     def _clear_highlight(self):

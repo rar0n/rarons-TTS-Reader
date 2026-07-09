@@ -9,18 +9,10 @@ A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting one sentence at a time, better pauses
 (hopefully), and basic controls.
 
-
-### Vibe coded
-
-Full disclosure, I don't know Python that well. Claude does though.
-As I found KoboldCpp TTS flunked out on longer-form text I vibe-coded this
-with Claude Sonnet 5 on Extra / High  and Medium effort, over now quite a
-few free sessions (which is awesome btw, so thanks to Anthropic for that!).
-
 So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 
 At least partly the reason KoboldCpp stopped rendering voice, is probably
-due to me not knowing how to use the awesome KoboldCpp, like setting enough
+due to me not knowing how to use the KoboldCpp properly, like setting enough
 context memory.
 
 Still - I doubt **very much** it could do 40+ minutes (tested with this app)
@@ -28,20 +20,27 @@ to a few hours (not tested yet but I see no reason why it shouldn't work).
 
 At least this way that shouldn't be a concern almost regardless of lenght
 I think. At least not within your system's memory capacity to store audio
-samples. Rougly 350 MB / hour, about half on disk as wav, even less as mp3.
+samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
 
 One issue might be if your system renders speech slower than real-time,
 there will be longer pauses between sentences (or chunks).
 You can just wait it out and save as wav or mp3 for later listen though.
 (just press Play, then again to Pause, wait, and save it).
 
+### Vibe coded
+
+Full disclosure: I don't know Python that well. Claude does though.
+As I found KoboldCpp TTS flunked out on longer-form text I vibe-coded this
+with Claude Sonnet 5 on Extra / High  and Medium effort, over now quite a
+few free sessions (which is awesome btw, so thanks to Anthropic for that!).
+
+
 Note: Saving as mp3 might take some time, during which time its unresponsive.
       (usually just a few seconds, depending on size and system specs)
 
 Note 2: Most of the source code comments is Claude's. Some (not all) of the
         reasoning behind _why_ something is done is Claude's assumption and
-        a bit off (usually not something I explicitly said).
-        Program logic seems solid though (afaik).
+        a bit off. But a lot is on-point as well!
 
 
     2026 Ragnar Aronsen (raron) ( But mostly Claude :) )
@@ -113,10 +112,7 @@ it if needed.
   or its API. No guarantee it'll work in later versions of KoboldCpp)
 
 
-
 ## Controls
-
-Pretty self explanatory, but:
 
 ### Narration tab
 
@@ -132,7 +128,21 @@ Pretty self explanatory, but:
 | Lock seed | Stops TTS Reader from making a new seed value on next play |
 | Store seed | Store seed in Seed Vault (and disk) |
 
-Also, Ctrl + mouse scrollwheel = Zoom text in/out.
+#### Keyboard / mouse controls:
+
+| Keys | Action |
+|---|---|
+| Ctrl + mouse scrollwheel | Zoom text in/out |
+| Ctrl + Enter | Play (speak) |
+
+##### While speaking
+
+| Keys | Action |
+|---|---|
+| Space | Pause / Resume |
+| Arrow Right | Forward |
+| Arrow Left | Rewind |
+| ESC | Stop playing |
 
 
 ### Seed Vault tab
@@ -155,7 +165,7 @@ Save / Load settings and Reset to defaults. Nice to have.
 ## Tuning (Settings tab)
 
 ### Note
-Settings are kind of experimental, some might not be needed.
+Settings are kind of experimental / tests. Some might not be that useful.
 
 You might want to set all types of pauses to 0 (maybe except
 paragraph pauses?)
@@ -234,10 +244,14 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 ## Version history
 
+- 2026.07.09 rarons TTS Reader v0.55 - Tweaked chunk rules again (not perfect)
+                                       (numbers, URL's), Keyboard controls,
+                                       Auto scroll highlight margin settings,
+                                       GUI tweaks, Error prints to terminal.
 - 2026.07.08 rarons TTS Reader v0.50 - More narration rules (numbers, URL's)
                                        Drag'n'drop files, auto scroll,
                                        other tweaks.
-- 2026.07.08 rarons TTS Reader v0.45 - Own seed value, Seed Vault, color tweaks
+- 2026.07.08 rarons TTS Reader v0.45 - TTS seed value, Seed Vault, color tweaks
 - 2026.07.07 rarons TTS Reader v0.40 - Settings tab, highlight tweaks,
                                        chunk rules, MIT License,
 - 2026.07.05 rarons TTS Reader v0.30 - Save audio, "zoomable" text
