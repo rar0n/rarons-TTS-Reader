@@ -1,4 +1,4 @@
-<img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/bb1a1b0c-5d27-4435-9f6f-167b6ee49a96" />
+<img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/af7e7098-b5ac-4107-bc75-c1b79d7ecf46" />
 
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
@@ -212,7 +212,8 @@ paragraph pauses?)
   preceding text in the textbox if need be after a full stop.
 - Lines of repeating punctuation might make weird sounds, but it should
   mostly ignore those (except ellipses (...) etc.).
-- GUI is a bit off right now, but workable. It'll be fixed soon (I hope).
+- Some issues reading URL's at the moment, probably more, I haven't tested
+  everything.
 
 
 ## License
