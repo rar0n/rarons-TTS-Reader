@@ -14,7 +14,7 @@ So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 
 ### Features
 
-- **Long text** can be spoken via KoboldCpp TTS (Only tested 45ish minute so far)
+- **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
 - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
   - Note save as mp3 may take a bit of time (depending on length etc.)
 - **Live highligthing** of spoken sentences (or TTS chunks)
