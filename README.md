@@ -1,6 +1,5 @@
 <img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/af7e7098-b5ac-4107-bc75-c1b79d7ecf46" />
 
-
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around limited context memory, making KoboldCpp's TTS
@@ -12,21 +11,34 @@ TTS API, with live highlighting one sentence at a time, better pauses
 
 So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 
-At least partly the reason KoboldCpp stopped rendering voice, is probably
-due to me not knowing how to use the KoboldCpp properly, like setting enough
-context memory.
 
-Still - I doubt **very much** it could do 40+ minutes (tested with this app)
-to a few hours (not tested yet but I see no reason why it shouldn't work).
+### Features
 
-At least this way that shouldn't be a concern almost regardless of lenght
-I think. At least not within your system's memory capacity to store audio
-samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
+- Long text can be spoken via KoboldCpp TTS (hours?)
+- Live highligthing of spoken sentences (or TTS chunks)
+- Optional highlight margins, you can set the ratio of screen margin as
+  a denominator (E.G 4 means 1/4 of screen height. When the highlight reaches
+  1/4 screen height from the top or bottom edge, it will scroll the highlight
+  to the other 1/4 edge)
+- TTS seed value management (can reuse seeds if you find one you like):
+  - Save / load to / from "Seed Vault" tab table.
+  - Optional notes in the "Seed Vault" table.
+- Add custom pause lengths for various punctuations
+  (in addition to KoboldCpp's TTS engine's pauses, maybe not so useful)
+- Keyboard controls in addition to GUI:
+  - Ctrl + Enter = Play / Speak. When speaking:
+    - Space = Pause / resume
+    - Arrow left / right = Rewind / Forward
+    - ESC = Stop, return to textbox.
 
 One issue might be if your system renders speech slower than real-time,
-there will be longer pauses between sentences (or chunks).
+there will be longer pauses between sentences (TTS chunks sent to KoboldCpp).
 You can just wait it out and save as wav or mp3 for later listen though.
 (just press Play, then again to Pause, wait, and save it).
+
+Note: Saving as mp3 might take some time, during which time its unresponsive.
+      (usually just a few seconds, depending on size and system specs)
+
 
 ### Vibe coded
 
@@ -34,10 +46,6 @@ Full disclosure: I don't know Python that well. Claude does though.
 As I found KoboldCpp TTS flunked out on longer-form text I vibe-coded this
 with Claude Sonnet 5 on Extra / High  and Medium effort, over now quite a
 few free sessions (which is awesome btw, so thanks to Anthropic for that!).
-
-
-Note: Saving as mp3 might take some time, during which time its unresponsive.
-      (usually just a few seconds, depending on size and system specs)
 
 Note 2: Most of the source code comments is Claude's. Some (not all) of the
         reasoning behind _why_ something is done is Claude's assumption and
@@ -205,6 +213,17 @@ paragraph pauses?)
   for faster lookahead — but most local TTS servers serialize generation on
   the GPU anyway, so this usually isn't a bottleneck.
 
+Btw: At least partly the reason KoboldCpp stopped rendering voice, is probably
+due to me not knowing how to use the KoboldCpp properly, like setting enough
+context memory.
+
+Still - I doubt **very much** it could do 40+ minutes (tested with this app)
+to a few hours (not tested yet but I see no reason why it shouldn't work).
+
+At least this way that shouldn't be a concern almost regardless of lenght
+I think. At least not within your system's memory capacity to store audio
+samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
+
 
 ## Known Issues
 
@@ -213,7 +232,10 @@ paragraph pauses?)
 - Lines of repeating punctuation might make weird sounds, but it should
   mostly ignore those (except ellipses (...) etc.).
 - Some issues reading URL's at the moment, probably more, I haven't tested
-  everything.
+  everything
+- (Linux Mint) You probaby will get a few warnings about ALSA underruns.
+  (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). Ignore it :)
+
 
 
 ## License
@@ -258,4 +280,5 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
                                        chunk rules, MIT License,
 - 2026.07.05 rarons TTS Reader v0.30 - Save audio, "zoomable" text
 - 2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights
+- 
 - 2026.07.03 rarons TTS Reader v0.20 - Initial release
