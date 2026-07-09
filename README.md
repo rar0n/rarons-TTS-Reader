@@ -21,12 +21,13 @@ So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 - **highlight margins** (optional), you can set the ratio of screen margin as
   a "Scroll Denominator" (Ex. 4 means 1/4 of screen height. When the highlight
   reaches 1/4 textbox height from its top or bottom edge, it will scroll the
-  highlight to the other edge, with the same 1/4 distance, and so on.
+  highlight to the other edge, with the same 1/4 distance.
 - **TTS seed value management** (Rudimentary. Can reuse seeds):
   - Save / load to / from "Seed Vault" tab table.
   - Optional notes in the "Seed Vault" table.
 - **Extra Pause settings** Add custom pause lengths for various punctuations
-  (in addition to KoboldCpp's TTS engine's pauses, maybe not so useful)
+  (in addition to KoboldCpp's TTS engine's pauses. Maybe not so useful).
+  - These only applies to punctuations _between_ chunks sent to KoboldCpp TTS.
 - **Keyboard controls** in addition to GUI:
   - Ctrl + Enter = Play / Speak. When speaking:
     - Space = Pause / resume
@@ -112,7 +113,7 @@ it if needed.
   pick a random speaker for each sentence. Might not be what you want.
   Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
 - If the TTS Reader's "Lock seed" option is unticked, the TTS Reader will
-  make one at random.
+  make one at random on each new speech (play).
 - Clicking the dice button next to it makes a random seed value.
 - If you happen upon a value you'd like to keep, click "Store seed", and it's
   saved to the Seed Vault tab (as well as in the settings file; config.json).
