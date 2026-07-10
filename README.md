@@ -1,4 +1,4 @@
-<img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/af7e7098-b5ac-4107-bc75-c1b79d7ecf46" />
+<img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/88661c96-9771-4e03-b11f-f3cc248df05f" />
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
