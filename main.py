@@ -3,50 +3,7 @@ rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around limited context memory for KoboldCpp TTS,
   for long single-shot TTS requests.
-
-
-MIT License
-
-Copyright (c) 2026 Ragnar Aronsen
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
-
-
-A small Python app that reads pasted text aloud through KoboldCpp's
-TTS API, with live highlighting one sentence at a time, better pauses
-(hopefully), and basic Play, Pause/Resume, Rwd/Fwd and Stop controls.
-
-Note: Saving as mp3 might take a little while, depending on size.
-
-Note 2: Most of the source code comments is Claude's. Some (not all) of the
-        reasoning behind _why_ something is done is Claude's assumption and
-        a bit off (usually not something I explicitly said).
-        Program logic seems solid though (afaik).
-
-More in README.md
-
-    2026 raron ( But mostly Claude :) )
-
-That is all."""
+"""
 
 import sys
 import os
@@ -65,7 +22,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QLineEdit, QLabel, QFormLayout, QMessageBox,
     QComboBox, QFileDialog, QTabWidget, QSpinBox, QPlainTextEdit,
     QGroupBox, QScrollArea, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QCheckBox, QSizePolicy,
+    QCheckBox, QSizePolicy, QGridLayout, QProgressBar,
 )
 
 import chunker  # imported as a module (not just `from chunker import ...`) so the
@@ -77,22 +34,27 @@ from synth_worker import SynthWorker
 from audio_engine import AudioEngine, PlaybackState
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader v0.55 (2026.07.09)"
+_PROGRAMTITLE = "raron's TTS Reader v0.57 (2026.07.10)"
 
 # Where chunking settings get saved to / auto-loaded from on startup.
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
 
-# Status label colors for the two states it can be in.
-_STATUS_STYLE_NORMAL = "background-color: #204090; color: white; padding: 4px;"
+# Status label colors. Each tab gets its own muted background so they're
+# distinguishable at a glance; the error state (Narration tab only, so
+# far) stays the brighter/more alarming dark red it always was, distinct
+# from Settings' muted dark red "normal" state.
+_STATUS_STYLE_NARRATION = "background-color: #223655; color: white; padding: 4px;"
+_STATUS_STYLE_SEED_VAULT = "background-color: #2b3f2e; color: white; padding: 4px;"
+_STATUS_STYLE_SETTINGS = "background-color: #4a2c2c; color: white; padding: 4px;"
 _STATUS_STYLE_ERROR = "background-color: #8b0000; color: white; padding: 4px;"
 
-# Shared muted RGB palette for buttons across all tabs. These are
-# desaturated/darkened versions of the accent hues (rather than the near-
-# saturated originals) so buttons blend into the dark theme instead of
-# popping out of it, while still reading clearly as blue/green/red/amber.
-_COLOR_DARK_BLUE = "#3a4864"    # Play / pause / resume, Randomize seed, Copy seed, Reset to Defaults
-_COLOR_DARK_GREEN = "#3f5442"   # "ready" / save / store actions
-_COLOR_DARK_RED = "#5c3a3a"     # stop / remove / destructive-ish actions
+# Backwards-compatible alias -- the Narration tab's "normal" status style.
+_STATUS_STYLE_NORMAL = _STATUS_STYLE_NARRATION
+
+# Shared desaturated/darkened RGB (and amber) palette for buttons across all tabs.
+_COLOR_DARK_BLUE = "#3a4864"    # Play / pause / resume / refresh, Reset to Defaults
+_COLOR_DARK_GREEN = "#3f5442"   # "ready" / save / Store seed / save actions
+_COLOR_DARK_RED = "#5c3a3a"     # stop / remove / Randomize seed / destructive-ish actions
 _COLOR_DARK_AMBER = "#6b4d2c"   # active seek controls -- Rewind / Forward while playing
 
 # The same four hues again, pushed further toward the background -- used
@@ -142,6 +104,24 @@ def _btn_style(color: str, disabled_color: str = None) -> str:
         f"QPushButton:disabled {{ background-color: {disabled_color}; color: {_DISABLED_TEXT_COLOR}; }}"
     )
 
+def _progress_style(background: str, chunk_color: str) -> str:
+    """Builds a stylesheet for a QProgressBar with a flat `background`
+    (the unfilled track) and `chunk_color` for the filled portion."""
+    return (
+        f"QProgressBar {{ background-color: {background}; color: white; "
+        f"border: none; padding: 1px; text-align: center; }}"
+        f"QProgressBar::chunk {{ background-color: {chunk_color}; }}"
+    )
+
+
+# Narration/rendering progress bars: muted while in progress, switching
+# to the same normal (brighter) blue/green used elsewhere in the app
+# once each one actually reaches 100%.
+_PROGRESS_STYLE_NARRATION = _progress_style(_COLOR_DISABLED_BLUE, _COLOR_DARK_BLUE)
+_PROGRESS_STYLE_NARRATION_FULL = _progress_style(_COLOR_DARK_BLUE, _COLOR_DARK_BLUE)
+_PROGRESS_STYLE_RENDER = _progress_style(_COLOR_DISABLED_GREEN, _COLOR_DARK_GREEN)
+_PROGRESS_STYLE_RENDER_FULL = _progress_style(_COLOR_DARK_GREEN, _COLOR_DARK_GREEN)
+
 # Used to project remaining time before any chunk has actually been
 # synthesized yet (roughly 150 words/minute of speech).
 _FALLBACK_SECONDS_PER_WORD = 0.4
@@ -174,7 +154,7 @@ def _with_extension(path: str, ext: str) -> str:
 def _print_error(message: str):
     """Echoes an error-status line to stdout/terminal, in addition to
     wherever it's also shown in the GUI -- useful when running from a
-    console and the GUI itself isn't (or can't be) watched closely."""
+    console and the error message is longer than can be shown in the GUI"""
     print(f"[ERROR] {message}")
 
 
@@ -259,8 +239,7 @@ class ZoomableTextEdit(QTextEdit):
     # to start playback, and -- once playback has made the box read-only --
     # Space/Left/Right/Esc for pause-resume/rewind/forward/stop. Emitted as
     # signals rather than acted on directly here, so MainWindow's existing
-    # button handlers stay the single source of truth for what each action
-    # actually does.
+    # button handlers stay the single source for what each action does.
     play_requested = Signal()
     pause_resume_requested = Signal()
     rewind_requested = Signal()
@@ -430,17 +409,31 @@ class SettingsTab(QWidget):
     def _build_ui(self):
         outer = QVBoxLayout(self)
 
+        # -- Connection (kept outside the scroll area so it's always visible) --
+        connection_form = QFormLayout()
+        self.url_edit = QLineEdit("http://127.0.0.1:5001")
+        self.url_edit.textChanged.connect(self._on_field_changed)
+        connection_form.addRow("KoboldCpp URL:", self.url_edit)
+        outer.addLayout(connection_form)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         outer.addWidget(scroll)
 
         content = QWidget()
         scroll.setWidget(content)
-        layout = QVBoxLayout(content)
+        # 2x2: Scrolling (top-left) / Chunk sizing (top-right) over
+        # Pauses (bottom-left) / Abbreviations (bottom-right). Row 2 gets
+        # all the stretch so the four groups stay pinned to the top of
+        # the scroll area instead of spreading out to fill it.
+        layout = QGridLayout(content)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
 
         # -- Pauses --
         pause_group = QGroupBox("Pauses (milliseconds)")
         pause_form = QFormLayout(pause_group)
+        pause_form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
         for char, label in _PUNCT_PAUSE_LABELS:
             spin = QSpinBox()
             spin.setRange(0, 10000)
@@ -456,11 +449,12 @@ class SettingsTab(QWidget):
             spin.valueChanged.connect(self._on_field_changed)
             self.other_spinboxes[name] = spin
             pause_form.addRow(label, spin)
-        layout.addWidget(pause_group)
+        layout.addWidget(pause_group, 1, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Chunking limits --
         chunk_group = QGroupBox("Chunk sizing")
         chunk_form = QFormLayout(chunk_group)
+        chunk_form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
         self.long_chunk_spin = QSpinBox()
         self.long_chunk_spin.setRange(2, 2000)
         self.long_chunk_spin.setToolTip(
@@ -476,7 +470,7 @@ class SettingsTab(QWidget):
         )
         self.min_chars_spin.valueChanged.connect(self._on_field_changed)
         chunk_form.addRow("Min chunk chars:", self.min_chars_spin)
-        layout.addWidget(chunk_group)
+        layout.addWidget(chunk_group, 0, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Abbreviations --
         abbrev_group = QGroupBox("Abbreviations (not treated as sentence-enders)")
@@ -486,11 +480,12 @@ class SettingsTab(QWidget):
         self.abbrev_edit.setFixedHeight(120)
         self.abbrev_edit.textChanged.connect(self._on_field_changed)
         abbrev_layout.addWidget(self.abbrev_edit)
-        layout.addWidget(abbrev_group)
+        layout.addWidget(abbrev_group, 1, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Scrolling --
         scroll_group = QGroupBox("Scrolling")
         scroll_form = QFormLayout(scroll_group)
+        scroll_form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
         self.scroll_margin_checkbox = QCheckBox("Scroll Margin")
         self.scroll_margin_checkbox.setToolTip(
             "Keep the playback highlight within a comfortable margin from "
@@ -508,9 +503,9 @@ class SettingsTab(QWidget):
         )
         self.scroll_denominator_spin.valueChanged.connect(self._on_field_changed)
         scroll_form.addRow("Scroll Denominator:", self.scroll_denominator_spin)
-        layout.addWidget(scroll_group)
+        layout.addWidget(scroll_group, 0, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
 
-        layout.addStretch(1)
+        layout.setRowStretch(2, 1)
 
         # -- Save / load --
         btn_row = QHBoxLayout()
@@ -531,6 +526,7 @@ class SettingsTab(QWidget):
         outer.addLayout(btn_row)
 
         self.settings_status = ElidingLabel("")
+        self.settings_status.setStyleSheet(_STATUS_STYLE_SETTINGS)
         outer.addWidget(self.settings_status)
 
     # ---- gathering / applying / populating ---------------------------------
@@ -542,6 +538,7 @@ class SettingsTab(QWidget):
         other = {name: spin.value() for name, spin in self.other_spinboxes.items()}
         abbrevs = self._parse_abbrev_text(self.abbrev_edit.toPlainText())
         return {
+            "KOBOLDCPP_URL": self.url_edit.text().strip(),
             "PAUSE_MAP": pause_map,
             **other,
             "LONG_CHUNK_WORD_LIMIT": self.long_chunk_spin.value(),
@@ -579,6 +576,8 @@ class SettingsTab(QWidget):
         """The inverse of _gather_settings -- fills the widgets from a dict.
         Missing keys just leave that field at whatever it already was."""
         self._building = True
+        if "KOBOLDCPP_URL" in settings:
+            self.url_edit.setText(settings["KOBOLDCPP_URL"])
         pause_map = settings.get("PAUSE_MAP", {})
         for char, spin in self.punct_spinboxes.items():
             if char in pause_map:
@@ -605,6 +604,7 @@ class SettingsTab(QWidget):
         plain hardcoded default here instead (off, SD=4 -- matching the
         original fixed 1/4 margin)."""
         settings = {
+            "KOBOLDCPP_URL": "http://127.0.0.1:5001",
             "PAUSE_MAP": dict(chunker.PAUSE_MAP),
             "LONG_CHUNK_WORD_LIMIT": chunker.LONG_CHUNK_WORD_LIMIT,
             "MIN_CHUNK_CHARS": chunker.MIN_CHUNK_CHARS,
@@ -672,12 +672,12 @@ class SettingsTab(QWidget):
 
 
 class SeedVaultTab(QWidget):
-    """A little table of remembered (voice, seed, comment) triples. Rows
-    get added from the Narration tab's "Store seed" button; this tab just
-    manages the table itself (remove/copy-back/save) plus auto-loading
+    """A little table of remembered (voice, seed, instruction, notes) rows.
+    Rows get added from the Narration tab's "Store seed" button; this tab
+    just manages the table itself (remove/copy-back/save) plus auto-loading
     from the shared settings.json on startup."""
 
-    seed_requested = Signal(str, str)  # (voice, seed) -- picked to send back to the Narration tab
+    seed_requested = Signal(str, str, str)  # (voice, seed, instruction) -- picked to send back to the Narration tab
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -687,11 +687,12 @@ class SeedVaultTab(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Voice", "Seed", "Comment"])
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Voice", "Seed", "Instruction", "Notes"])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setColumnWidth(0, 160)
         self.table.setColumnWidth(1, 120)
+        self.table.setColumnWidth(2, 160)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         layout.addWidget(self.table)
@@ -714,37 +715,45 @@ class SeedVaultTab(QWidget):
         layout.addLayout(btn_row)
 
         self.status_label = ElidingLabel("")
+        self.status_label.setStyleSheet(_STATUS_STYLE_SEED_VAULT)
         layout.addWidget(self.status_label)
 
     # ---- row management -----------------------------------------------------
 
-    def add_row(self, voice: str, seed: str, comment: str = ""):
+    def add_row(self, voice: str, seed: str, instruction: str = "", notes: str = ""):
         row = self.table.rowCount()
         self.table.insertRow(row)
         voice_item = QTableWidgetItem(voice)
         seed_item = QTableWidgetItem(seed)
-        comment_item = QTableWidgetItem(comment)
+        instruction_item = QTableWidgetItem(instruction)
+        notes_item = QTableWidgetItem(notes)
         # Voice/Seed are set programmatically (from "Store seed") -- only
-        # the Comment cell should be directly editable by clicking into it.
+        # the Instruction/Notes cells should be directly editable by
+        # clicking into them.
         for item in (voice_item, seed_item):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.table.setItem(row, 0, voice_item)
         self.table.setItem(row, 1, seed_item)
-        self.table.setItem(row, 2, comment_item)
+        self.table.setItem(row, 2, instruction_item)
+        self.table.setItem(row, 3, notes_item)
 
     def _gather_rows(self) -> list:
         rows = []
         for r in range(self.table.rowCount()):
             voice = self.table.item(r, 0).text() if self.table.item(r, 0) else ""
             seed = self.table.item(r, 1).text() if self.table.item(r, 1) else ""
-            comment = self.table.item(r, 2).text() if self.table.item(r, 2) else ""
-            rows.append({"voice": voice, "seed": seed, "comment": comment})
+            instruction = self.table.item(r, 2).text() if self.table.item(r, 2) else ""
+            notes = self.table.item(r, 3).text() if self.table.item(r, 3) else ""
+            rows.append({"voice": voice, "seed": seed, "instruction": instruction, "notes": notes})
         return rows
 
     def _populate_rows(self, rows: list):
         self.table.setRowCount(0)
         for entry in rows:
-            self.add_row(entry.get("voice", ""), entry.get("seed", ""), entry.get("comment", ""))
+            # "notes" falls back to the older "comment" key so a
+            # settings.json saved before the rename still loads cleanly.
+            notes = entry.get("notes", entry.get("comment", ""))
+            self.add_row(entry.get("voice", ""), entry.get("seed", ""), entry.get("instruction", ""), notes)
 
     def _on_remove_row_clicked(self):
         row = self.table.currentRow()
@@ -760,7 +769,8 @@ class SeedVaultTab(QWidget):
             return
         voice = self.table.item(row, 0).text() if self.table.item(row, 0) else ""
         seed = self.table.item(row, 1).text() if self.table.item(row, 1) else ""
-        self.seed_requested.emit(voice, seed)
+        instruction = self.table.item(row, 2).text() if self.table.item(row, 2) else ""
+        self.seed_requested.emit(voice, seed, instruction)
 
     # ---- save / load ----------------------------------------------------------
 
@@ -819,6 +829,35 @@ class MainWindow(QMainWindow):
         # ground gets covered, not whether the clock is ticking.
         self._narration_start_time: float | None = None
         self._narration_elapsed: float = 0.0
+        # Tracks the highest narration-progress fraction shown so far in
+        # the current session -- the elapsed/projected-total estimate
+        # _update_playing_status computes isn't strictly monotonic (early
+        # on, with few chunks' real durations known yet, the projected
+        # total can jump around), so the displayed bar only ever moves
+        # forward instead of visibly dipping back down mid-playback.
+        self._narration_progress_peak: float = 0.0
+
+        # Lets a Play press replay already-synthesized audio instead of
+        # re-rendering from scratch, as long as nothing that would change
+        # the audio (voice, seed, instruction, URL, or the text itself) has
+        # been touched since. Set True once every chunk has finished
+        # rendering ("render-through") -- independent of whether playback
+        # itself has reached the end, so stopping partway through a
+        # finished render still leaves it replayable. Cleared by a fresh
+        # Play with something changed, by Stop while rendering is still
+        # incomplete, or by a chunk/playback error. _last_play_signature
+        # snapshots the fields that must stay unchanged for the buffer to
+        # still be valid to replay.
+        self._buffered_playable: bool = False
+        self._last_play_signature: tuple | None = None
+
+        # Mirrors the `playing` argument passed to _set_controls_enabled --
+        # kept separately because _sync_randomize_btn_enabled() also needs
+        # to react to the Lock checkbox alone, and engine.state isn't
+        # updated yet at the point _set_controls_enabled(playing=True) is
+        # called from _start_playback (that happens a couple of lines
+        # before engine.play_from() actually flips it).
+        self._transport_playing: bool = False
 
         self.bridge = EngineBridge()
         self.bridge.chunk_started.connect(self._on_chunk_started)
@@ -849,10 +888,14 @@ class MainWindow(QMainWindow):
         reader_tab = QWidget()
         layout = QVBoxLayout(reader_tab)
 
-        # Connection settings
+        # Instruction override -- usually left blank. Overrides the voice
+        # setting when non-empty (the voice picked below still influences
+        # narration even then). The KoboldCpp URL field that used to sit
+        # here has moved to the top of the Settings tab.
         form = QFormLayout()
-        self.url_edit = QLineEdit("http://127.0.0.1:5001")
-        form.addRow("KoboldCpp URL:", self.url_edit)
+        self.instruction_edit = QLineEdit()
+        self.instruction_edit.setPlaceholderText("Optional instruction. PS! Random voice each line, overrides voice for QwenTTS afaik")
+        form.addRow("Instructions:", self.instruction_edit)
 
         voice_row = QHBoxLayout()
         self.voice_combo = QComboBox()
@@ -875,6 +918,7 @@ class MainWindow(QMainWindow):
         )
         self.refresh_voices_btn.setFixedWidth(32)
         self.refresh_voices_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.refresh_voices_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
         self.refresh_voices_btn.clicked.connect(self._refresh_voices)
 
         # Seed field: pins the TTS voice for the whole playthrough when
@@ -894,22 +938,23 @@ class MainWindow(QMainWindow):
         self.seed_edit.setFixedWidth(seed_width)
         self.seed_edit.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.seed_edit.setText(str(random.randint(0, 2**31 - 1)))
-        self.randomize_seed_btn = QPushButton("🎲")
+        self.randomize_seed_btn = QPushButton("🎲 RND ")
         self.randomize_seed_btn.setToolTip("Fill in a random seed (0 to 2^31-1)")
-        self.randomize_seed_btn.setFixedWidth(32)
+        self.randomize_seed_btn.setFixedWidth(56)
         self.randomize_seed_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.randomize_seed_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
+        self.randomize_seed_btn.setStyleSheet(_btn_style(_COLOR_DARK_RED))
         self.randomize_seed_btn.clicked.connect(self._on_randomize_seed_clicked)
-        self.lock_seed_checkbox = QCheckBox("Lock seed")
+        self.lock_seed_checkbox = QCheckBox("Lock")
         self.lock_seed_checkbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.lock_seed_checkbox.setToolTip(
             "Keep the current seed across new plays instead of randomizing "
             "it each time (resuming from pause never re-randomizes it either way)"
         )
+        self.lock_seed_checkbox.toggled.connect(lambda _checked: self._sync_randomize_btn_enabled())
         self.store_seed_btn = QPushButton("Store seed")
         self.store_seed_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.store_seed_btn.setToolTip(
-            "Save the current voice + seed as a row in the Seed Vault tab"
+            "Save the current voice + seed + instruction as a row in the Seed Vault tab"
         )
         self.store_seed_btn.setStyleSheet(_btn_style(_COLOR_DARK_GREEN))
         self.store_seed_btn.clicked.connect(self._on_store_seed_clicked)
@@ -937,10 +982,25 @@ class MainWindow(QMainWindow):
         self.text_edit.stop_requested.connect(self._on_stop_clicked)
         layout.addWidget(self.text_edit)
 
-        # Status label
-        self.status_label = ElidingLabel("0 Chars")
-        self.status_label.setStyleSheet(_STATUS_STYLE_NORMAL)
-        layout.addWidget(self.status_label)
+        # Narration/rendering progress bars -- sit where the status label
+        # used to, right above the transport row. Each starts out muted
+        # and switches to its "normal" (brighter) color once it actually
+        # reaches 100% -- see _set_progress().
+        self.narration_progress = QProgressBar()
+        self.narration_progress.setRange(0, 100)
+        self.narration_progress.setValue(0)
+        self.narration_progress.setTextVisible(False)
+        self.narration_progress.setFixedHeight(10)
+        self.narration_progress.setStyleSheet(_PROGRESS_STYLE_NARRATION)
+        layout.addWidget(self.narration_progress)
+
+        self.render_progress = QProgressBar()
+        self.render_progress.setRange(0, 100)
+        self.render_progress.setValue(0)
+        self.render_progress.setTextVisible(False)
+        self.render_progress.setFixedHeight(10)
+        self.render_progress.setStyleSheet(_PROGRESS_STYLE_RENDER)
+        layout.addWidget(self.render_progress)
 
         # Transport controls
         controls = QHBoxLayout()
@@ -986,6 +1046,12 @@ class MainWindow(QMainWindow):
             controls.addWidget(btn)
         layout.addLayout(controls)
 
+        # Status label -- moved to the bottom of the GUI, below the
+        # transport row, matching the Seed Vault and Settings tabs.
+        self.status_label = ElidingLabel("0 Chars")
+        self.status_label.setStyleSheet(_STATUS_STYLE_NARRATION)
+        layout.addWidget(self.status_label)
+
         self._set_controls_enabled(playing=False)
 
         self.settings_tab = SettingsTab()
@@ -995,11 +1061,31 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.seed_vault_tab, "Seed Vault")
         tabs.addTab(self.settings_tab, "Settings")
 
+        # The text box is the natural place to start typing/pasting, so
+        # it gets initial focus rather than whatever Qt's default tab
+        # order would pick.
+        self.text_edit.setFocus()
+
     def _set_controls_enabled(self, playing: bool):
+        self._transport_playing = playing
         self.rewind_btn.setEnabled(playing)
         self.forward_btn.setEnabled(playing)
         self.stop_btn.setEnabled(playing)
         self.text_edit.setReadOnly(playing)
+        # Voice/seed/instruction shouldn't change mid-render/playback --
+        # that would desync them from whatever's actually being (or has
+        # been) synthesized.
+        self.voice_combo.setEnabled(not playing)
+        self.refresh_voices_btn.setEnabled(not playing)
+        self.seed_edit.setEnabled(not playing)
+        self.instruction_edit.setEnabled(not playing)
+        self._sync_randomize_btn_enabled()
+
+    def _sync_randomize_btn_enabled(self):
+        """RND is disabled either while playing (same reasoning as the
+        voice/seed/instruction fields above) or whenever Lock is checked
+        (randomizing would just get overwritten on the next play anyway)."""
+        self.randomize_seed_btn.setEnabled(not self._transport_playing and not self.lock_seed_checkbox.isChecked())
 
     def _set_save_audio_ready(self, ready: bool):
         """Enables/disables Save Audio. Its color (dark green once ready,
@@ -1008,10 +1094,26 @@ class MainWindow(QMainWindow):
         flip setEnabled()."""
         self.save_btn.setEnabled(ready)
 
+    def _set_progress(self, bar: QProgressBar, fraction: float, muted_style: str, full_style: str):
+        """Sets `bar`'s value from a 0-1 `fraction`, swapping to
+        `full_style` once it actually reaches 100% and back to
+        `muted_style` otherwise -- avoids restyling on every single tick
+        once it's already sitting at whichever style is current."""
+        value = max(0, min(100, int(round(fraction * 100))))
+        bar.setValue(value)
+        target_style = full_style if value >= 100 else muted_style
+        if bar.styleSheet() != target_style:
+            bar.setStyleSheet(target_style)
+
+    def _reset_progress_bars(self):
+        self._narration_progress_peak = 0.0
+        self._set_progress(self.narration_progress, 0.0, _PROGRESS_STYLE_NARRATION, _PROGRESS_STYLE_NARRATION_FULL)
+        self._set_progress(self.render_progress, 0.0, _PROGRESS_STYLE_RENDER, _PROGRESS_STYLE_RENDER_FULL)
+
     # ---- voice discovery ----------------------------------------------------
 
     def _refresh_voices(self):
-        base_url = self.url_edit.text().strip() or "http://127.0.0.1:5001"
+        base_url = self.settings_tab.url_edit.text().strip() or "http://127.0.0.1:5001"
         client = KoboldTTSClient(base_url=base_url)
         self.refresh_voices_btn.setEnabled(False)
         self.status_label.setText("Fetching voices…")
@@ -1054,16 +1156,18 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No seed", "The seed field is empty -- nothing to store.")
             return
         voice = self.voice_combo.currentText().strip() or "default"
-        self.seed_vault_tab.add_row(voice, seed, "")
+        instruction = self.instruction_edit.text().strip()
+        self.seed_vault_tab.add_row(voice, seed, instruction, "")
         if self.seed_vault_tab.save_to_disk():
             self.status_label.setText(f"Stored & saved seed {seed} ({voice}) in Seed Vault")
         else:
             self.status_label.setText(f"Stored seed {seed} ({voice}) in Seed Vault (save failed)")
 
-    def _on_seed_requested_from_vault(self, voice: str, seed: str):
+    def _on_seed_requested_from_vault(self, voice: str, seed: str, instruction: str = ""):
         if voice:
             self.voice_combo.setCurrentText(voice)
         self.seed_edit.setText(seed)
+        self.instruction_edit.setText(instruction)
         self.lock_seed_checkbox.setChecked(True)
         self.status_label.setText(f"Loaded seed {seed} from Seed Vault")
 
@@ -1072,7 +1176,10 @@ class MainWindow(QMainWindow):
     def _on_play_pause_clicked(self):
         state = self.engine.state
         if state == PlaybackState.STOPPED:
-            self._start_playback()
+            if self._can_replay_buffer():
+                self._replay_from_buffer()
+            else:
+                self._start_playback()
         else:
             self.engine.toggle_pause()
             if self.engine.state == PlaybackState.PAUSED:
@@ -1081,11 +1188,95 @@ class MainWindow(QMainWindow):
                 self._narration_mark_playing()
         self._sync_play_button()
 
+    # ---- buffered-audio replay ---------------------------------------------
+
+    def _current_playback_signature(self) -> tuple:
+        """A snapshot of everything that would change the rendered audio if
+        edited. As long as this matches what was used for the last
+        completed playthrough, that playthrough's buffer can be replayed
+        as-is instead of re-synthesizing."""
+        return (
+            self.settings_tab.url_edit.text().strip(),
+            self.voice_combo.currentText().strip(),
+            self.seed_edit.text().strip(),
+            self.instruction_edit.text().strip(),
+            self.text_edit.toPlainText(),
+        )
+
+    def _can_replay_buffer(self) -> bool:
+        return (
+            self._buffered_playable
+            and bool(self.chunks)
+            and self.engine.is_fully_synthesized()
+            and self._current_playback_signature() == self._last_play_signature
+        )
+
+    def _replay_from_buffer(self):
+        """Plays the already-synthesized audio again from the top, with no
+        re-chunking or re-synthesis and (per the Lock seed checkbox rule)
+        no seed change either -- that only happens on a fresh render."""
+        self._set_controls_enabled(playing=True)
+        self._set_error_style(False)
+        self._narration_reset()
+        self._narration_progress_peak = 0.0
+        self._set_progress(self.narration_progress, 0.0, _PROGRESS_STYLE_NARRATION, _PROGRESS_STYLE_NARRATION_FULL)
+        self._narration_mark_playing()
+        self.engine.play_from(0)
+        self.status_timer.start()
+
+    def _font_break_positions(self) -> set:
+        """Scans the narration text box for characters whose point size,
+        bold, or italic state differs from the character right before
+        them -- e.g. a heading pasted in ahead of body text, or a bolded
+        word/phrase -- and returns the set of plain-text offsets where
+        that happens. Each is passed to chunk_text() as an implied
+        sentence-end, treated the same as a period even though no
+        punctuation is actually there.
+
+        Deliberately does NOT reset the comparison at paragraph (block)
+        boundaries: a heading and the body text that follows it are
+        usually two separate QTextBlocks (single-newline-separated, not a
+        blank-line paragraph break), and chunker only treats a plain "\\n"
+        as a real break once there are two or more in a row -- so a
+        style/size change is often the *only* signal that a heading ends
+        and body text begins. Purely-whitespace fragments are skipped
+        entirely (neither compared against nor recorded as the "current"
+        style) since their formatting is often just inherited noise."""
+        breaks = set()
+        doc = self.text_edit.document()
+        offset = 0
+        prev_sig = None
+        block = doc.begin()
+        while block.isValid():
+            it = block.begin()
+            while not it.atEnd():
+                frag = it.fragment()
+                if frag.isValid():
+                    frag_text = frag.text()
+                    if frag_text:
+                        if frag_text.strip():
+                            font = frag.charFormat().font()
+                            size = font.pointSizeF()
+                            size = round(size, 1) if size > 0 else None
+                            sig = (size, font.bold(), font.italic())
+                            if prev_sig is not None and sig != prev_sig:
+                                breaks.add(offset)
+                            prev_sig = sig
+                        offset += len(frag_text)
+                it += 1
+            block = block.next()
+            if block.isValid():
+                offset += 1  # the '\n' toPlainText() joins consecutive blocks with
+        return breaks
+
     def _start_playback(self):
         text = self.text_edit.toPlainText()
         if not text.strip():
             QMessageBox.information(self, "No text", "Paste some text first.")
             return
+
+        self._buffered_playable = False
+        self._reset_progress_bars()
 
         # A fresh play (as opposed to resuming from pause, which goes
         # through toggle_pause in _on_play_pause_clicked and never reaches
@@ -1093,7 +1284,7 @@ class MainWindow(QMainWindow):
         if not self.lock_seed_checkbox.isChecked():
             self.seed_edit.setText(str(random.randint(0, 2**31 - 1)))
 
-        self.chunks = chunk_text(text)
+        self.chunks = chunk_text(text, force_breaks=self._font_break_positions())
         if not self.chunks:
             QMessageBox.information(self, "Nothing to read", "Couldn't find any readable text.")
             return
@@ -1118,10 +1309,12 @@ class MainWindow(QMainWindow):
                 return
 
         client = KoboldTTSClient(
-            base_url=self.url_edit.text().strip() or "http://127.0.0.1:5001",
+            base_url=self.settings_tab.url_edit.text().strip() or "http://127.0.0.1:5001",
             voice=voice,
             seed=seed,
+            instruction=self.instruction_edit.text().strip(),
         )
+        self._last_play_signature = self._current_playback_signature()
 
         self.engine.set_chunks(self.chunks)
         self._set_controls_enabled(playing=True)
@@ -1180,10 +1373,19 @@ class MainWindow(QMainWindow):
         self.status_timer.stop()
         self._narration_mark_paused()
         self._clear_highlight()
+        # If every chunk had already finished rendering, that complete
+        # buffer is kept around -- Stop here just halts playback, and the
+        # next Play (with nothing else changed) replays it instead of
+        # re-synthesizing. Only a Stop mid-render (an incomplete buffer)
+        # discards it, since there's nothing safe to replay yet.
+        if not self.engine.is_fully_synthesized():
+            self._buffered_playable = False
         self._set_controls_enabled(playing=False)
         self._set_error_style(False)
         self._sync_play_button()
         self.status_label.setText("Idle")
+        self._narration_progress_peak = 0.0
+        self._set_progress(self.narration_progress, 0.0, _PROGRESS_STYLE_NARRATION, _PROGRESS_STYLE_NARRATION_FULL)
         self.text_edit.setFocus()
 
     # ---- engine callbacks (run on the GUI thread via EngineBridge) -------
@@ -1202,6 +1404,7 @@ class MainWindow(QMainWindow):
         self._set_controls_enabled(playing=False)
         self._sync_play_button()
         self._narration_mark_paused()
+        self._set_progress(self.narration_progress, 1.0, _PROGRESS_STYLE_NARRATION, _PROGRESS_STYLE_NARRATION_FULL)
         stats = self._build_stats_line(narration_elapsed=self._narration_total_elapsed())
         self.status_label.setText(f"Finished \u2022 {stats}")
 
@@ -1211,6 +1414,7 @@ class MainWindow(QMainWindow):
         already stopped by the time this fires."""
         self.status_timer.stop()
         self._narration_mark_paused()
+        self._buffered_playable = False
         suffix = f" \u2022 {self._last_stats_line}" if self._last_stats_line else ""
         self._show_error_status(f"Playback error on chunk {idx + 1}: {message}{suffix}")
         self._clear_highlight()
@@ -1226,12 +1430,24 @@ class MainWindow(QMainWindow):
 
     def _on_chunk_synthesized(self, idx: int, wav_bytes: bytes):
         self._synth_done_count += 1
+        total = len(self.chunks)
+        if total:
+            self._set_progress(self.render_progress, self._synth_done_count / total,
+                                _PROGRESS_STYLE_RENDER, _PROGRESS_STYLE_RENDER_FULL)
 
     def _on_synthesis_finished(self):
         if self._synth_start_time is not None:
             self._synth_total_elapsed = time.monotonic() - self._synth_start_time
         if self.engine.is_fully_synthesized():
             self._set_save_audio_ready(True)
+            self._set_progress(self.render_progress, 1.0, _PROGRESS_STYLE_RENDER, _PROGRESS_STYLE_RENDER_FULL)
+            # Every chunk has now been rendered -- a "render-through" --
+            # so the buffer is complete and safe to replay later even if
+            # playback itself hasn't reached the end yet (e.g. the user
+            # stops partway through, or pauses and never resumes).
+            # _last_play_signature was already snapshotted in
+            # _start_playback when this render was kicked off.
+            self._buffered_playable = True
 
     # ---- status label -------------------------------------------------------
 
@@ -1380,6 +1596,12 @@ class MainWindow(QMainWindow):
         self._last_stats_line = self._build_stats_line(cur_words=cur_words, remaining=remaining)
         state_word = "Paused" if self.engine.state == PlaybackState.PAUSED else "TTS chunk"
         self.status_label.setText(f"{state_word} {idx + 1}/{total} {self._last_stats_line}")
+
+        if projected_total > 0:
+            fraction = max(self._narration_progress_peak, elapsed / projected_total)
+            self._narration_progress_peak = min(1.0, fraction)
+            self._set_progress(self.narration_progress, fraction,
+                                _PROGRESS_STYLE_NARRATION, _PROGRESS_STYLE_NARRATION_FULL)
 
     # ---- saving -------------------------------------------------------------
 

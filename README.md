@@ -135,9 +135,13 @@ it if needed.
 | ⏹ Stop | Stop and reset |
 | Save Audio | Save as wav or mp3 (when finished rendering) |
 | ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
-| 🎲 (next to Seed value) | Randomize seed |
+| 🎲 RND | Randomize seed |
 | Lock seed | Stops TTS Reader from making a new seed value on next play |
 | Store seed | Store seed in Seed Vault (and disk) |
+
+- After a complete playthrough, if you want another version (even with the
+  same voice and text), click RND to make a new random seed value before Play.
+
 
 #### Keyboard / mouse controls:
 
@@ -210,8 +214,7 @@ paragraph pauses?), maybe even chunk minimum sizing.
 
 - Saving as mp3 might take a little while (a few seconds, depending on size),
   during which time it will be unresponsive. Be patient :)
-- Sentence splitting is regex-based, not a full NLP sentence tokenizer, so
-  unusual punctuation might cause issues (with speech rhytm, highlighting).
+- Unusual punctuation might cause issues (with speech rhytm, highlighting).
 - TTS speech depends on KoboldCpp configuration.
   (Only between chunk pauses, chunk selection, and chunk preparation depends
    on this TTS Reader).
@@ -230,17 +233,15 @@ samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
 
 ## Known Issues
 
+- Long runs of dashes (not so long even), like "------" may make KoboldCpp
+  stutter, or crash / hang. (To be fixed...)
 - There's no "continue from selection" function, for now just delete the
   preceding text in the textbox if need be after a full stop.
-- Lines of repeating punctuation might make weird sounds, but it should
-  mostly ignore those (except ellipses (...) etc.).
-- Some issues reading URL's at the moment, probably more, I haven't tested
-  everything
 - (Linux Mint) You probaby will get a few warnings about ALSA underruns.
   (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). Ignore it :)
-  (Also another warning popped up. I'll get it fixed eventually. Probably)
 - Scrolling in the Settings tab might inadvertedly change numeric values
   if your mouse cursor hovers over a field while scrolling.
+  (I made them narrower so that's easier to avoid now)
 
 
 ## License
@@ -273,6 +274,9 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 ## Version history
 
+- 2026.07.10 rarons TTS Reader v0.60 - GUI tweaks, better URL pronunciation.
+                                       Added "instruction" field for KoboldCpp.
+                                       Failed text formatting change detection.
 - 2026.07.09 rarons TTS Reader v0.55 - Tweaked chunk rules again (not perfect)
                                        (numbers, URL's), Keyboard controls,
                                        Auto scroll highlight margin settings,

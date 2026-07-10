@@ -18,25 +18,41 @@ class TTSError(Exception):
 class KoboldTTSClient:
     def __init__(self, base_url: str = "http://127.0.0.1:5001",
                  voice: str = "default", timeout: int = 60,
-                 seed: Optional[int] = None):
+                 seed: Optional[int] = None, instruction: str = ""):
         self.base_url = base_url.rstrip("/")
         self.voice = voice
         self.timeout = timeout
         # When set, every synthesize() call sends this exact seed, which
         # pins the voice so it no longer drifts between chunks. When left
         # None, KoboldCpp picks its own (effectively random) seed each call.
+        # Also, afaik one can't retrieve KoboldCpp's own seed value via API.
         self.seed = seed
+        # Free-text instruction sent alongside the voice on every
+        # synthesize() call. Left empty by default (matching the previous
+        # hardcoded behaviour); when non-empty, KoboldCpp treats it as an
+        # override that can affect/replace the specific voice selected.
+        self.instruction = instruction or ""
 
-    def synthesize(self, text: str) -> bytes:
-        """Send `text` to KoboldCpp and return raw WAV audio bytes."""
+    def synthesize(self, text: str, instruction: Optional[str] = None) -> bytes:
+        """Send `text` to KoboldCpp and return raw WAV audio bytes.
+
+        `instruction` overrides self.instruction for this call only, if
+        given; otherwise self.instruction (set at construction time) is
+        used."""
         if not text.strip():
             raise TTSError("Empty text passed to synthesize()")
 
         url = f"{self.base_url}/v1/audio/speech"
+        #url = f"{self.base_url}/api/extra/tts" # test. KoboldCpp specific API alt.
+
+        effective_instruction = self.instruction if instruction is None else instruction
+
         payload = {
+            "model": "kcpp",
             "input": text,
             "voice": self.voice,
             "response_format": "wav",
+            "instruction": effective_instruction, # if non-empty = Random voice, specific voice overridden
         }
         if self.seed is not None:
             payload["seed"] = self.seed
