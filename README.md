@@ -105,58 +105,9 @@ Other TTS models should work as well.
     It can take a few seconds before it starts reading the first time.
 
 
-### Note
+#### Note
 
 No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
-
-
-#### Narration tab
-
-- If deleting the voice field (or as "Default"), KoboldCpp will just
-  pick a random speaker for each sentence. Might not be what you want.
-- Same-ish if you enter something in the "instructions" field:
-  - It overrides Voice setting (Not really to be used with QwenTTS base
-    afaik).
-- If the "Lock seed" is checked, seed value can't change.
-- Entering a seed value or clicking RND button changes seed value, it makes
-  KoboldCpp make a new speech variation of a voice.
-  - AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
-    API. No guarantee it'll work in later versions of KoboldCpp.
-  - Still works on KoboldCpp v.1.117
-  - Range seems to be from 0 to 2^31-1, or 0 to 2147483647.
-- If you happen upon a seed value you'd like to keep, click "Store seed".
-  - It will be stored in the "Seed Vault", along with voice and instructions.
-    - You can also make a note there, for your own reference.
-
-
-#### Seed Vault tab
-
-Just a simple table of stored seed values from the Narration tab.
-In case you like a seed value / voice combo.
-Stores:
- - Voice
- - Seed value
- - Any "instructions" text.
- - Optional notes
-
- After editing, click "Save Table".
- - It's stored in the same file as the settings.
- - If you mess up and want to revert to the last saved settings, go to
-   Settings tab and reload settings (don't click "Save Table" then...).
-
-
-#### Settings tab
-
-KoboldCpp default URL (`http://127.0.0.1:5001`) is already filled in, change
-it if needed.
-
-
-
-
-
- It will override voice, and also
-    change the voice for every sentence. Voice choice still affects output
-    though.
 
 
 ## Controls
@@ -179,6 +130,22 @@ it if needed.
 
 - After a complete playthrough, if you want another version (even with the
   same voice and text), click RND to make a new random seed value before Play.
+- If deleting the voice field (or as "Default"), KoboldCpp will just
+  pick a random speaker for each sentence. Might not be what you want.
+- Same-ish if you enter something in the "instructions" field:
+  - It overrides Voice setting (Not really to be used with QwenTTS base
+    afaik).
+- If the "Lock seed" is checked, seed value can't change.
+- Entering a seed value or clicking RND button changes seed value, it makes
+  KoboldCpp make a new speech variation of a voice.
+  - AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
+    API. No guarantee it'll work in later versions of KoboldCpp.
+  - Still works on KoboldCpp v.1.117
+  - Range seems to be from 0 to 2^31-1, or 0 to 2147483647.
+- If you happen upon a seed value you'd like to keep, click "Store seed".
+  - It will be stored in the "Seed Vault", along with voice and instructions.
+    - You can also make a note there, for your own reference.
+
 
 
 #### Keyboard / mouse controls:
@@ -200,9 +167,18 @@ it if needed.
 
 ### Seed Vault tab
 
-A simple table of voices and seed values, if stored from the Narration tab.
-Click on an entry's Notes cell to edit a note about it.
-Or click on a row to select it for deletion.
+Just a simple table of stored seed values from the Narration tab.
+In case you like a seed value / voice combo.
+Stores:
+ - Voice
+ - Seed value
+ - Any "instructions" text.
+ - Optional notes
+
+ After editing a note or instruction, click "Save Table".
+ - It's stored in the same file as the settings.
+ - If you mess up and want to revert to the last saved settings, go to
+   Settings tab and reload settings (don't click "Save Table" then...).
 
 | Button | Action |
 |---|---|
@@ -214,6 +190,16 @@ Or click on a row to select it for deletion.
 ### Settings tab
 
 Settings are kind of experimental / tests. Some might not be that useful.
+
+KoboldCpp default URL (`http://127.0.0.1:5001`) is already filled in, change
+it if needed.
+
+
+| Button | Action |
+|---|---|
+| Save Settings | Saves in settings.json |
+| Load Settings... | Loads settings.json |
+| Reset to Defaults | Just some arbitrary default values |
 
 
 #### Scrolling
@@ -251,16 +237,6 @@ Long-chunk word limit: — how many words trigger a forced mid-sentence split
 
 Comma or newline separated list of typical abbreviations ending in a period,
 that's not a sentence end (like "Dr.", "Mr.", etc).
-
-
-#### Buttons
-
-| Button | Action |
-|---|---|
-| Save Settings | Saves in settings.json |
-| Load Settings... | Loads settings.json |
-| Reset to Defaults | Just some arbitrary default values |
-
 
 
 ## Known limitations
