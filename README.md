@@ -24,8 +24,6 @@ So KoboldCpp only gets one sentence or text chunk at a time, works much better!
   highlight to the other edge, with the same 1/4 distance.
   - Thus making the text around the highlighted area visible (if enough text).
 - **TTS seed value management** (Rudimentary. Can reuse seeds):
-  - Save / load to / from "Seed Vault" tab table.
-  - Optional notes in the "Seed Vault" table.
 - **Extra Pause settings** Add custom pause lengths for various punctuations
   (in addition to KoboldCpp's TTS engine's pauses. Maybe not so useful).
   - These only applies to punctuations _between_ chunks sent to KoboldCpp TTS.
@@ -106,38 +104,78 @@ Other TTS models should work as well.
    formatting), check the KoboldCpp URL/voice fields, hit **▶ Play**
     It can take a few seconds before it starts reading the first time.
 
+
+### Note
+
+No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
+
+
+#### Narration tab
+
+- If deleting the voice field (or as "Default"), KoboldCpp will just
+  pick a random speaker for each sentence. Might not be what you want.
+- Same-ish if you enter something in the "instructions" field:
+  - It overrides Voice setting (Not really to be used with QwenTTS base
+    afaik).
+- If the "Lock seed" is checked, seed value can't change.
+- Entering a seed value or clicking RND button changes seed value, it makes
+  KoboldCpp make a new speech variation of a voice.
+  - AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
+    API. No guarantee it'll work in later versions of KoboldCpp.
+  - Still works on KoboldCpp v.1.117
+  - Range seems to be from 0 to 2^31-1, or 0 to 2147483647.
+- If you happen upon a seed value you'd like to keep, click "Store seed".
+  - It will be stored in the "Seed Vault", along with voice and instructions.
+    - You can also make a note there, for your own reference.
+
+
+#### Seed Vault tab
+
+Just a simple table of stored seed values from the Narration tab.
+In case you like a seed value / voice combo.
+Stores:
+ - Voice
+ - Seed value
+ - Any "instructions" text.
+ - Optional notes
+
+ After editing, click "Save Table".
+ - It's stored in the same file as the settings.
+ - If you mess up and want to revert to the last saved settings, go to
+   Settings tab and reload settings (don't click "Save Table" then...).
+
+
+#### Settings tab
+
 KoboldCpp default URL (`http://127.0.0.1:5001`) is already filled in, change
 it if needed.
 
-- No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
-- If deleting the voice field (or as "Default"), KoboldCpp will just
-  pick a random speaker for each sentence. Might not be what you want.
-  Pick an actual named voice (e.g. `kobo`, `cheery`) for a consistent voice.
-- If the TTS Reader's "Lock seed" option is unticked, the TTS Reader will
-  make one at random on each new speech (play).
-- Clicking the dice button next to it makes a random seed value.
-- If you happen upon a value you'd like to keep, click "Store seed", and it's
-  saved to the Seed Vault tab (as well as in the settings file; settings.json).
-  (AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
-  or its API. No guarantee it'll work in later versions of KoboldCpp)
-  - Confirmed it still works on KoboldCpp v.1.117
+
+
+
+
+ It will override voice, and also
+    change the voice for every sentence. Voice choice still affects output
+    though.
 
 
 ## Controls
 
 ### Narration tab
 
-| Button | Action |
+| Button / Field | Action |
 |---|---|
+| Instructions | Optional instructions. NOTE: Overrides voice! |
+| Voice drop-down list | Voice list fetched from KoboldCpp |
+| ⟳ (Refresh) | Re-fetch the voice list from KoboldCpp |
+| 🎲 RND | Randomize seed |
+| Lock seed | Stops TTS Reader from making a new seed value on next play |
+| Store seed | Store seed in Seed Vault (and disk) |
 | ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
 | ⏮ Rewind | Jump back one sentence (chunk) and replay |
 | ⏭ Forward | Jump forward one sentence (chunk) |
 | ⏹ Stop | Stop and reset |
 | Save Audio | Save as wav or mp3 (when finished rendering) |
-| ⟳ (next to Voice) | Re-fetch the voice list from KoboldCpp |
-| 🎲 RND | Randomize seed |
-| Lock seed | Stops TTS Reader from making a new seed value on next play |
-| Store seed | Store seed in Seed Vault (and disk) |
 
 - After a complete playthrough, if you want another version (even with the
   same voice and text), click RND to make a new random seed value before Play.
@@ -163,7 +201,7 @@ it if needed.
 ### Seed Vault tab
 
 A simple table of voices and seed values, if stored from the Narration tab.
-Click on a row's Comment cell to edit a note about it.
+Click on an entry's Notes cell to edit a note about it.
 Or click on a row to select it for deletion.
 
 | Button | Action |
@@ -175,39 +213,54 @@ Or click on a row to select it for deletion.
 
 ### Settings tab
 
-Save / Load settings and Reset to defaults.
-Nice to have if you want settings (and Seed Vault) to persist, or if you
-want to reload the settings.
-Reset to default just loads some preliminary default values
-(You might want most of these to 0 (zero), experiment!)
-
-
-## Tuning (Settings tab)
-
-### Note
 Settings are kind of experimental / tests. Some might not be that useful.
 
-As said, you might want to set most of these to 0 (maybe except
-paragraph pauses?), maybe even chunk minimum sizing.
+
+#### Scrolling
+
+Enable / disable scroll margin (how much un-selected text are visible before
+                                or after the selected TTS chunk while speaking)
+Scroll denominator: (SD) Sets the margin size.
+                    The size is set as a ratio of 1/SD of the textbox height.
+
+
+#### Pauses (milliseconds)
+
+Extra pauses at the end of each TTS sentence chunk (depending on punctuation).
+Actually, you might want most of these to 0 (zero). Experiment.
+
 - Speech might be a bit slow with default pauses, as all pauses will
   be **additional** to pauses that the TTS engine (KoboldCpp) makes, but
-  only at each chunk (sentence) ends.
+  only at each chunk's (sentence) end.
 - Mid-chunk only the TTS engine determines how it's spoken, pauses and all.
 - Unless a chunk is deemed too short to be by itself, any punctuation should
   only be at the end of a chunk sent to KoboldCpp.
   (Btw this is also a rule you might tune, see Chunk sizing below).
 
-### Settings
 
-- Pauses (milliseconds) — Extra pauses at the end of each TTS sentence chunk
-  (depending on punctuation).
-- Chunk sizing
-  - Min chunk chars — raise this if chunks still sound choppy (more
-    merging), lower it for more granular chunks / highlighting.
-  - Long-chunk word limit: — how many words trigger a forced mid-sentence
-    split for punctuation-free walls of text (prevents "overloading" KoboldCpp).
-- Abbreviations list — Comma or newline separated list of typical abbreviations
-  ending in a period, that's not a sentence end (like "Dr.", "Mr.", etc).
+#### Chunk sizing
+
+Min chunk chars        — Minimum size of a TTS chunk sent to TTS.
+                         Lower it for more granular chunks / highlighting.
+Long-chunk word limit: — how many words trigger a forced mid-sentence split
+                        for punctuation-free walls of text
+                        (prevents "overloading" KoboldCpp).
+
+
+#### Abbreviations list
+
+Comma or newline separated list of typical abbreviations ending in a period,
+that's not a sentence end (like "Dr.", "Mr.", etc).
+
+
+#### Buttons
+
+| Button | Action |
+|---|---|
+| Save Settings | Saves in settings.json |
+| Load Settings... | Loads settings.json |
+| Reset to Defaults | Just some arbitrary default values |
+
 
 
 ## Known limitations
