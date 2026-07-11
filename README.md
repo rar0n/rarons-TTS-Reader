@@ -16,11 +16,11 @@ So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 
 - **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
 - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
-- **Live highligthing** of spoken sentences (or TTS chunks)
-- **Highlight margins** (visible non-highlighted text around highlighted)
-- **TTS seed value management** (Rudimentary. Can reuse seeds)
-- **Extra Pause settings** (Maybe not so useful).
-- **Keyboard controls** in addition to GUI buttons:
+- **Live highligthing** (Per sentence / TTS chunk)
+- Highlight margins (visible non-highlighted text around highlighted)
+- TTS seed value management (Rudimentary. Can reuse seeds)
+- Extra Pause settings (Maybe not so useful).
+- Keyboard controls in addition to GUI buttons:
   - Ctrl + Enter = Play / Speak. When speaking:
     - Space = Pause / resume
     - Arrow left / right = Rewind / Forward
