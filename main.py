@@ -486,18 +486,18 @@ class SettingsTab(QWidget):
         scroll_group = QGroupBox("Scrolling")
         scroll_form = QFormLayout(scroll_group)
         scroll_form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
-        self.scroll_margin_checkbox = QCheckBox("Scroll Margin")
+        self.scroll_margin_checkbox = QCheckBox("Highlight Margin")
         self.scroll_margin_checkbox.setToolTip(
-            "Auto-scroll the playback highlight within a comfortable margin,"
-            "set by 1/Scroll Denominator ratio of textbox height."
+            "Enables the playback highlight margin / distance to top or bottom edge.\n"
+            "Set by 1/Scroll Denominator ratio of textbox height."
         )
         self.scroll_margin_checkbox.stateChanged.connect(self._on_field_changed)
         scroll_form.addRow(self.scroll_margin_checkbox)
 
         self.clamp_highlight_checkbox = QCheckBox("Clamp Highlight Distance")
         self.clamp_highlight_checkbox.setToolTip(
-            "Keep the highlight at a constant distance from the edge. "
-            "Except at the beginning and end of the text."
+            "Checked: Keeps the playback highlight at a constant distance from the edge.\n"
+            "Unchecked: Auto-scrolls the highlight within same distance to opposite edge."
         )
         self.clamp_highlight_checkbox.stateChanged.connect(self._on_field_changed)
         scroll_form.addRow(self.clamp_highlight_checkbox)
@@ -505,7 +505,7 @@ class SettingsTab(QWidget):
         self.scroll_denominator_spin = QSpinBox()
         self.scroll_denominator_spin.setRange(2, 20)
         self.scroll_denominator_spin.setToolTip(
-            "Scroll Denominator (SD): The highlight is kept a distance from the top or bottom "
+            "Scroll Denominator (SD): The highlight is kept a distance from the top or bottom\n"
             "edge, of at least 1/SD ratio of the text box's height, except at beginning and end."
         )
         self.scroll_denominator_spin.valueChanged.connect(self._on_field_changed)
@@ -976,7 +976,7 @@ class MainWindow(QMainWindow):
         self.lock_seed_checkbox = QCheckBox("Lock")
         self.lock_seed_checkbox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.lock_seed_checkbox.setToolTip(
-            "Keep the current seed across new plays instead of randomizing "
+            "Keep the current seed across new plays instead of randomizing\n"
             "it each time (resuming from pause never re-randomizes it either way)"
         )
         self.lock_seed_checkbox.toggled.connect(lambda _checked: self._sync_randomize_btn_enabled())

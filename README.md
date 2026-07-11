@@ -190,19 +190,21 @@ it if needed.
 
 #### Scrolling
 
-Just a quick setting for having more text visible after (or before if
-rewinding) the currently playing / selected TTS chunk.
+Narration highlight settings.
 
-It is set as a ratio of 1/SD of textbox height
-(SD = Scroll Denominator)
+Just a quick setting for having more text visible around the currently highlighted
+TTS chunk (Except at the beginning and end of the text).
 
- - Ex. SD = 4 means 1/4 of screen height. When the highlight reaches 1/4
-   of the textbox height from its top or bottom edge, it will scroll the
-   highlight to the other edge, with the same 1/4 distance.
-  - Thus making text around the highlighted area visible (if enough text).
-
-- Scroll Margin (checkbox): Enable or disable scroll margin.
-- Scroll Denominator      : Sets the margin ratio (SD).
+- Highlight Margin (checkbox)
+  - Enable or disable highlight margin / distance to top or bottom edge.
+- Clamp Highlight Distance
+  - Checked   : Keeps the highlight at a constant distance instead of autoscroll.
+  - Unchecked : Auto-scrolls the highlight to the opposite edge (top / bottom).
+- Scroll Denominator
+  - Sets the margin size as ratio (1/SD) of textbox height.
+    - Ex. SD = 4 means 1/4 of screen height. When the highlight reaches 1/4
+      of the textbox height from its top or bottom edge, it will scroll the
+      highlight to the other edge, with the same 1/4 distance.
 
 
 #### Pauses (milliseconds)
