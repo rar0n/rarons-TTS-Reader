@@ -202,11 +202,11 @@ it if needed.
 
 #### Scrolling
 
-- Enable / disable scroll margin (how much un-selected text are visible before
-                                  or after the currently playing TTS chunk)
-
-- Scroll denominator: (SD) Sets the margin size.
-                      The size is set as a ratio of 1/SD of the textbox height.
+- Scroll Margin (checkbox): Enable or disable scroll margin.
+- Scroll denominator      : (SD) Sets the margin size.
+                            Set as a ratio of 1/SD of textbox height.
+                            (how much un-selected text is visible before
+                             or after the currently playing TTS chunk)
 
 
 #### Pauses (milliseconds)
@@ -225,11 +225,11 @@ Actually, you might want most of these to 0 (zero). Experiment.
 
 #### Chunk sizing
 
-Min chunk chars        — Minimum size of a TTS chunk sent to TTS.
+- Min chunk chars      : Minimum size of a TTS chunk sent to TTS.
                          Lower it for more granular chunks / highlighting.
-Long-chunk word limit: — how many words trigger a forced mid-sentence split
-                        for punctuation-free walls of text
-                        (prevents "overloading" KoboldCpp).
+- Long-chunk word limit: how many words trigger a forced mid-sentence split
+                         for punctuation-free walls of text
+                         (prevents "overloading" KoboldCpp).
 
 
 #### Abbreviations list
