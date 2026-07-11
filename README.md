@@ -110,7 +110,7 @@ Other TTS models should work as well.
 No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 
 
-## raron's TTS Reader details / controls
+## Controls / notes
 
 ### Narration tab
 
