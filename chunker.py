@@ -115,14 +115,23 @@ _TOKEN_RE = re.compile(
     # side are left for `number`/`word` to tokenize as normal.
     r"|(?P<numlistsep>(?<=\d)[.,](?= \d))"
     r"|(?P<punct>[,;:.!?\u2014\u2013])"
+    # A run of 2+ plain hyphens ("------", a common plain-text section
+    # divider). Tried before word so it isn't just swallowed as ordinary
+    # word characters -- treated in `_tokenize` as a paragraph-level break
+    # (like a blank line) rather than being spoken, since KoboldCpp can
+    # also crash on a long unbroken run of "-". A lone "-" (hyphenated
+    # word, or a dash used as an aside) is ordinary usage and falls
+    # through to `word` untouched.
+    r"|(?P<dashrun>-{2,})"
     # A run of ordinary characters -- but each step first checks it isn't
     # about to walk into a "-\n<word char>" wrap (left for hyphenjoin), the
-    # start of a URL (left for the url alternative above), or the start of
+    # start of a URL (left for the url alternative above), the start of
     # a numeric-separator run like "0.03"/"1,000,000" (left for the number
     # alternative above -- without this check, word would already have
     # swallowed straight through the leading digit before the tokenizer's
-    # scan position ever reached it, and number would never get a turn).
-    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)(?!\d+(?:[.,]+\d+)+)[^\n,;:.!?\u2014\u2013])+)"
+    # scan position ever reached it, and number would never get a turn),
+    # or the start of a 2+ hyphen run (left for dashrun above).
+    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)(?!\d+(?:[.,]+\d+)+)(?!-{2,})[^\n,;:.!?\u2014\u2013])+)"
 )
 
 
@@ -195,6 +204,10 @@ def _normalize_word(raw: str) -> str:
     pasted from code or notes. One underscore or a run of several are
     both just a word separator as far as TTS Reader is concerned, same as
     multiple spaces.
+
+    (Runs of 2+ hyphens never reach here -- they're carved off as their
+    own "dashrun" token by `_TOKEN_RE`/`_tokenize`, before `word` ever
+    gets a turn, and treated as a paragraph-level pause instead.)
 
     Inter-token spacing is already handled separately by `pending_glue`
     (set from punctuation and single-newline handling), so a leftover
@@ -365,6 +378,16 @@ def _tokenize(text: str) -> List[Chunk]:
                 # closed out (e.g. by a preceding "." or punctuation run) --
                 # upgrade its pause instead of silently losing the longer,
                 # paragraph-break pause.
+                chunks[-1].pause_ms = max(chunks[-1].pause_ms, PARAGRAPH_PAUSE_MS)
+            pending_glue = ""
+        elif kind == "dashrun":
+            # A run of 2+ hyphens is a divider, not something to speak --
+            # same paragraph-level pause treatment as a blank-line break,
+            # just without any text of its own to add to the builder.
+            if not builder.is_empty():
+                chunks.append(builder.build(PARAGRAPH_PAUSE_MS))
+                builder = _Builder()
+            elif chunks:
                 chunks[-1].pause_ms = max(chunks[-1].pause_ms, PARAGRAPH_PAUSE_MS)
             pending_glue = ""
         elif kind == "hyphenjoin":

@@ -305,6 +305,8 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 ## Version history
 
+- 2026.07.11 rarons TTS Reader v0.62
+  - Highlight distance clamp, removed failed rich text style change detector.
 - 2026.07.10 rarons TTS Reader v0.60
   - GUI tweaks, better URL pronunciation.Added "instruction" field for KoboldCpp. Failed rich text formatting change detection.
 - 2026.07.09 rarons TTS Reader v0.55

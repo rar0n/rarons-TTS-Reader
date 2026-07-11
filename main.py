@@ -34,7 +34,7 @@ from synth_worker import SynthWorker
 from audio_engine import AudioEngine, PlaybackState
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader v0.60 (2026.07.10)"
+_PROGRAMTITLE = "raron's TTS Reader v0.62 (2026.07.11)"
 
 # Where chunking settings get saved to / auto-loaded from on startup.
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
@@ -477,7 +477,7 @@ class SettingsTab(QWidget):
         abbrev_layout = QVBoxLayout(abbrev_group)
         self.abbrev_edit = QPlainTextEdit()
         self.abbrev_edit.setPlaceholderText("One per line, or comma-separated, e.g.: dr., mr., etc.")
-        self.abbrev_edit.setFixedHeight(120)
+        self.abbrev_edit.setFixedHeight(295)
         self.abbrev_edit.textChanged.connect(self._on_field_changed)
         abbrev_layout.addWidget(self.abbrev_edit)
         layout.addWidget(abbrev_group, 1, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
@@ -488,21 +488,31 @@ class SettingsTab(QWidget):
         scroll_form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
         self.scroll_margin_checkbox = QCheckBox("Scroll Margin")
         self.scroll_margin_checkbox.setToolTip(
-            "Keep the playback highlight within a comfortable margin from "
-            "the top/bottom of the text box, auto-scrolling to compensate "
-            "-- both while playing/forwarding and while rewinding."
+            "Auto-scroll the playback highlight within a comfortable margin,"
+            "set by 1/Scroll Denominator ratio of textbox height."
         )
         self.scroll_margin_checkbox.stateChanged.connect(self._on_field_changed)
         scroll_form.addRow(self.scroll_margin_checkbox)
 
+        self.clamp_highlight_checkbox = QCheckBox("Clamp Highlight Distance")
+        self.clamp_highlight_checkbox.setToolTip(
+            "Keep the highlight at a constant distance from the edge. "
+            "Except at the beginning and end of the text."
+        )
+        self.clamp_highlight_checkbox.stateChanged.connect(self._on_field_changed)
+        scroll_form.addRow(self.clamp_highlight_checkbox)
+
         self.scroll_denominator_spin = QSpinBox()
         self.scroll_denominator_spin.setRange(2, 20)
         self.scroll_denominator_spin.setToolTip(
-            "Scroll Denominator (SD): the highlight is kept within 1/SD of "
-            "the text box's height from the top and bottom edges."
+            "Scroll Denominator (SD): The highlight is kept a distance from the top or bottom "
+            "edge, of at least 1/SD ratio of the text box's height, except at beginning and end."
         )
         self.scroll_denominator_spin.valueChanged.connect(self._on_field_changed)
         scroll_form.addRow("Scroll Denominator:", self.scroll_denominator_spin)
+
+        self.scroll_margin_checkbox.toggled.connect(self._sync_scroll_margin_dependents_enabled)
+        self._sync_scroll_margin_dependents_enabled(self.scroll_margin_checkbox.isChecked())
         layout.addWidget(scroll_group, 0, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         layout.setRowStretch(2, 1)
@@ -546,6 +556,7 @@ class SettingsTab(QWidget):
             "ABBREVIATIONS": sorted(abbrevs),
             "SCROLL_MARGIN_ENABLED": self.scroll_margin_checkbox.isChecked(),
             "SCROLL_DENOMINATOR": self.scroll_denominator_spin.value(),
+            "CLAMP_HIGHLIGHT_DISTANCE": self.clamp_highlight_checkbox.isChecked(),
         }
 
     @staticmethod
@@ -595,14 +606,18 @@ class SettingsTab(QWidget):
             self.scroll_margin_checkbox.setChecked(bool(settings["SCROLL_MARGIN_ENABLED"]))
         if "SCROLL_DENOMINATOR" in settings:
             self.scroll_denominator_spin.setValue(int(settings["SCROLL_DENOMINATOR"]))
+        if "CLAMP_HIGHLIGHT_DISTANCE" in settings:
+            self.clamp_highlight_checkbox.setChecked(bool(settings["CLAMP_HIGHLIGHT_DISTANCE"]))
+        self._sync_scroll_margin_dependents_enabled(self.scroll_margin_checkbox.isChecked())
         self._building = False
 
     def _load_from_chunker_defaults(self):
         """Used on first startup (no config file yet) -- the chunker
-        module's own current values become the shown defaults. The two
+        module's own current values become the shown defaults. The three
         scroll-margin settings aren't chunker constants, so they get a
-        plain hardcoded default here instead (off, SD=4 -- matching the
-        original fixed 1/4 margin)."""
+        plain hardcoded default here instead (off, SD=4, clamp off --
+        matching the original fixed 1/4 margin, jump-to-opposite-edge
+        behavior)."""
         settings = {
             "KOBOLDCPP_URL": "http://127.0.0.1:5001",
             "PAUSE_MAP": dict(chunker.PAUSE_MAP),
@@ -611,6 +626,7 @@ class SettingsTab(QWidget):
             "ABBREVIATIONS": sorted(chunker.ABBREVIATIONS),
             "SCROLL_MARGIN_ENABLED": False,
             "SCROLL_DENOMINATOR": 4,
+            "CLAMP_HIGHLIGHT_DISTANCE": False,
         }
         for name, _label, _tip in _OTHER_PAUSE_FIELDS:
             settings[name] = getattr(chunker, name)
@@ -620,6 +636,13 @@ class SettingsTab(QWidget):
         if self._building:
             return
         self._apply_settings(self._gather_settings())
+
+    def _sync_scroll_margin_dependents_enabled(self, checked: bool):
+        """Scroll Denominator and Clamp Highlight Distance only mean
+        anything once Scroll Margin itself is turned on -- grey them out
+        otherwise instead of leaving them editable but inert."""
+        self.scroll_denominator_spin.setEnabled(checked)
+        self.clamp_highlight_checkbox.setEnabled(checked)
 
     # ---- save / load / reset -----------------------------------------------
 
@@ -802,7 +825,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(_PROGRAMTITLE)
-        self.resize(820, 600)
+        self.resize(820, 620)
 
         self.chunks: list[Chunk] = []
         self.chunk_word_counts: list[int] = []
@@ -850,6 +873,12 @@ class MainWindow(QMainWindow):
         # still be valid to replay.
         self._buffered_playable: bool = False
         self._last_play_signature: tuple | None = None
+
+        # Which chunk was highlighted last, and which direction the
+        # highlight most recently moved -- used by
+        # _scroll_to_keep_highlight_margins to tell forward playback from
+        # a rewind when "Clamp Highlight Distance" is enabled.
+        self._last_highlighted_idx: int | None = None
 
         # Mirrors the `playing` argument passed to _set_controls_enabled --
         # kept separately because _sync_randomize_btn_enabled() also needs
@@ -1224,51 +1253,6 @@ class MainWindow(QMainWindow):
         self.engine.play_from(0)
         self.status_timer.start()
 
-    def _font_break_positions(self) -> set:
-        """Scans the narration text box for characters whose point size,
-        bold, or italic state differs from the character right before
-        them -- e.g. a heading pasted in ahead of body text, or a bolded
-        word/phrase -- and returns the set of plain-text offsets where
-        that happens. Each is passed to chunk_text() as an implied
-        sentence-end, treated the same as a period even though no
-        punctuation is actually there.
-
-        Deliberately does NOT reset the comparison at paragraph (block)
-        boundaries: a heading and the body text that follows it are
-        usually two separate QTextBlocks (single-newline-separated, not a
-        blank-line paragraph break), and chunker only treats a plain "\\n"
-        as a real break once there are two or more in a row -- so a
-        style/size change is often the *only* signal that a heading ends
-        and body text begins. Purely-whitespace fragments are skipped
-        entirely (neither compared against nor recorded as the "current"
-        style) since their formatting is often just inherited noise."""
-        breaks = set()
-        doc = self.text_edit.document()
-        offset = 0
-        prev_sig = None
-        block = doc.begin()
-        while block.isValid():
-            it = block.begin()
-            while not it.atEnd():
-                frag = it.fragment()
-                if frag.isValid():
-                    frag_text = frag.text()
-                    if frag_text:
-                        if frag_text.strip():
-                            font = frag.charFormat().font()
-                            size = font.pointSizeF()
-                            size = round(size, 1) if size > 0 else None
-                            sig = (size, font.bold(), font.italic())
-                            if prev_sig is not None and sig != prev_sig:
-                                breaks.add(offset)
-                            prev_sig = sig
-                        offset += len(frag_text)
-                it += 1
-            block = block.next()
-            if block.isValid():
-                offset += 1  # the '\n' toPlainText() joins consecutive blocks with
-        return breaks
-
     def _start_playback(self):
         text = self.text_edit.toPlainText()
         if not text.strip():
@@ -1284,7 +1268,7 @@ class MainWindow(QMainWindow):
         if not self.lock_seed_checkbox.isChecked():
             self.seed_edit.setText(str(random.randint(0, 2**31 - 1)))
 
-        self.chunks = chunk_text(text, force_breaks=self._font_break_positions())
+        self.chunks = chunk_text(text)
         if not self.chunks:
             QMessageBox.information(self, "Nothing to read", "Couldn't find any readable text.")
             return
@@ -1689,21 +1673,42 @@ class MainWindow(QMainWindow):
             cursor.setPosition(chunk.spans[-1][1])
             self.text_edit.setTextCursor(cursor)
             self.text_edit.ensureCursorVisible()
-            self._scroll_to_keep_highlight_margins()
+            # A rewind/skip-back is the only case that moves the highlight
+            # to a *lower* index than last time -- anything else (normal
+            # forward playback, or repeating/replaying the same chunk)
+            # counts as "forward" for margin purposes.
+            forward = self._last_highlighted_idx is None or idx >= self._last_highlighted_idx
+            self._scroll_to_keep_highlight_margins(forward)
+            self._last_highlighted_idx = idx
 
-    def _scroll_to_keep_highlight_margins(self):
+    def _scroll_to_keep_highlight_margins(self, forward: bool = True):
         """ensureCursorVisible() only nudges the view just enough to keep
         the cursor on-screen at all, which tends to leave it hugging
-        whichever edge it approached from. Once it's drifted past the
-        1/SD margin from the bottom, scroll further so it settles at
-        1/SD from the top instead -- giving more of the upcoming text
-        room to be seen ahead of time while playing/forwarding. Symmetric
-        the other way too: once it's drifted past the 1/SD margin from
-        the top (e.g. after a rewind), scroll so it settles at 1/SD from
-        the *bottom* instead, giving more of the preceding text room to
-        be seen. Left alone if there isn't enough text in that direction
-        to actually scroll that far, and does nothing at all unless
-        "Scroll Margin" is enabled on the Settings tab."""
+        whichever edge it approached from.
+
+        Default behavior (Clamp Highlight Distance off): once it's
+        drifted past the 1/SD margin from the bottom, scroll further so
+        it settles at 1/SD from the top instead -- giving more of the
+        upcoming text room to be seen ahead of time while
+        playing/forwarding. Symmetric the other way too: once it's
+        drifted past the 1/SD margin from the top (e.g. after a rewind),
+        scroll so it settles at 1/SD from the *bottom* instead, giving
+        more of the preceding text room to be seen.
+
+        With Clamp Highlight Distance on, the scroll is a minimal
+        clamp instead of a jump to the opposite margin: while playing
+        forward, once the highlight would drift closer than 1/SD to the
+        *bottom* edge, it's held right at that 1/SD line rather than
+        jumped up near the top; while rewinding, once it would drift
+        closer than 1/SD to the *top* edge, it's held right at that line
+        instead of jumped down near the bottom. Either way, this is left
+        alone if there isn't enough text in that direction to actually
+        scroll that far -- e.g. near the very start or end of the text,
+        the highlight naturally ends up closer to the edge than the
+        margin would normally allow.
+
+        Does nothing at all unless "Scroll Margin" is enabled on the
+        Settings tab."""
         if not self.settings_tab.scroll_margin_checkbox.isChecked():
             return
         sd = self.settings_tab.scroll_denominator_spin.value()
@@ -1713,18 +1718,31 @@ class MainWindow(QMainWindow):
         cursor_top = self.text_edit.cursorRect().top()
         target_top = viewport_height / sd
         target_bottom = viewport_height * (sd - 1) / sd
-        if cursor_top > target_bottom:
-            target = target_top
-        elif cursor_top < target_top:
-            target = target_bottom
+
+        if self.settings_tab.clamp_highlight_checkbox.isChecked():
+            if forward:
+                if cursor_top <= target_bottom:
+                    return
+                target = target_bottom
+            else:
+                if cursor_top >= target_top:
+                    return
+                target = target_top
         else:
-            return
+            if cursor_top > target_bottom:
+                target = target_top
+            elif cursor_top < target_top:
+                target = target_bottom
+            else:
+                return
+
         scrollbar = self.text_edit.verticalScrollBar()
         new_value = scrollbar.value() + (cursor_top - target)
         scrollbar.setValue(int(min(scrollbar.maximum(), max(scrollbar.minimum(), new_value))))
 
     def _clear_highlight(self):
         self.text_edit.setExtraSelections([])
+        self._last_highlighted_idx = None
 
     def closeEvent(self, event):
         self.engine.shutdown()
