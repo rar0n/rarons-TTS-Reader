@@ -110,24 +110,11 @@ Other TTS models should work as well.
 No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 
 
-## Controls
+## raron's TTS Reader details / controls
 
 ### Narration tab
 
-| Button / Field | Action |
-|---|---|
-| Instructions | Optional instructions. NOTE: Overrides voice! |
-| Voice drop-down list | Voice list fetched from KoboldCpp |
-| ⟳ (Refresh) | Re-fetch the voice list from KoboldCpp |
-| 🎲 RND | Randomize seed |
-| Lock | Locks seed value, preventing changing it |
-| Store seed | Store seed value, voice and instructions to Seed Vault |
-| ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
-| ⏮ Rewind | Jump back one sentence (chunk) and replay |
-| ⏭ Forward | Jump forward one sentence (chunk) |
-| ⏹ Stop | Stops playback and rendering |
-| Save Audio | Save as wav or mp3 (when finished rendering) |
-
+Main tab for TTS
 - After a complete playthrough, if you want another version (even with the
   same voice and text), click RND to make a new random seed value before Play.
   - AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
@@ -145,6 +132,19 @@ No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
     afaik).
 
 
+| Button / Field | Action |
+|---|---|
+| Instructions | Optional instructions. NOTE: Overrides voice! |
+| Voice drop-down list | Voice list fetched from KoboldCpp |
+| ⟳ (Refresh) | Re-fetch the voice list from KoboldCpp |
+| 🎲 RND | Randomize seed |
+| Lock | Locks seed value, preventing changing it |
+| Store seed | Store seed value, voice and instructions to Seed Vault |
+| ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
+| ⏮ Rewind | Jump back one sentence (chunk) and replay |
+| ⏭ Forward | Jump forward one sentence (chunk) |
+| ⏹ Stop | Stops playback and rendering |
+| Save Audio | Save as wav or mp3 (when finished rendering) |
 
 #### Keyboard / mouse controls:
 
@@ -200,11 +200,14 @@ it if needed.
 
 #### Scrolling
 
+Just a quick setting for having more text visible after (or before if
+rewinding) the currently playing / selected TTS chunk.
+
+It is set as a ratio of 1/SD of textbox height
+(SD = Scroll Denominator)
+
 - Scroll Margin (checkbox): Enable or disable scroll margin.
-- Scroll denominator      : (SD) Sets the margin size.
-                            Set as a ratio of 1/SD of textbox height.
-                            (how much un-selected text is visible before
-                             or after the currently playing TTS chunk)
+- Scroll denominator      : Sets the margin ratio.
 
 
 #### Pauses (milliseconds)
