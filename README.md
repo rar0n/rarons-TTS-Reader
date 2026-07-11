@@ -172,17 +172,15 @@ Just a simple table of stored seed values from the Narration tab.
  - Optional notes
 
  After editing a note or instruction, click "Save Table".
- - It's stored in the same file as the settings.
+ - It's stored in the same file as the settings (settings.json).
  - If you mess up and want to revert to the last saved settings, go to
    Settings tab and reload settings (don't click "Save Table" then...).
-
-The table is stored in the settings file (settings.json).
 
 | Button | Action |
 |---|---|
 | Remove row | Deletes selected row |
 | Copy to Narration | Copies selected row's data to Narration tab |
-| Save Table | Saves table in settings file |
+| Save Table | Saves table to disk (settings file) |
 
 
 ### Settings tab
@@ -225,11 +223,13 @@ Actually, you might want most of these to 0 (zero). Experiment.
 
 #### Chunk sizing
 
-- Min chunk chars      : Minimum size of a TTS chunk sent to TTS.
-                         Lower it for more granular chunks / highlighting.
-- Long-chunk word limit: how many words trigger a forced mid-sentence split
-                         for punctuation-free walls of text
-                         (prevents "overloading" KoboldCpp).
+- Min chunk chars
+  - Minimum size of a TTS chunk sent to TTS.
+    - Lower it for more granular chunks / highlighting.
+- Long-chunk word limit
+  - How many words trigger a forced mid-sentence split
+    for punctuation-free walls of text
+  - Prevents "overloading" KoboldCpp.
 
 
 #### Abbreviations list
