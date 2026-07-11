@@ -121,23 +121,15 @@ No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 | ⟳ (Refresh) | Re-fetch the voice list from KoboldCpp |
 | 🎲 RND | Randomize seed |
 | Lock | Locks seed value, preventing changing it |
-| Store seed | Store seed in Seed Vault (and settings / disk) |
+| Store seed | Store seed value, voice and instructions to Seed Vault |
 | ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
 | ⏮ Rewind | Jump back one sentence (chunk) and replay |
 | ⏭ Forward | Jump forward one sentence (chunk) |
-| ⏹ Stop | Stop and reset |
+| ⏹ Stop | Stops playback and rendering |
 | Save Audio | Save as wav or mp3 (when finished rendering) |
 
 - After a complete playthrough, if you want another version (even with the
   same voice and text), click RND to make a new random seed value before Play.
-- If deleting the voice field (or as "Default"), KoboldCpp will just
-  pick a random speaker for each sentence. Might not be what you want.
-- Same-ish if you enter something in the "instructions" field:
-  - It overrides Voice setting (Not really to be used with QwenTTS base
-    afaik).
-- If the "Lock seed" is checked, seed value can't change.
-- Entering a seed value or clicking RND button changes seed value, it makes
-  KoboldCpp make a new speech variation of a voice.
   - AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
     API. No guarantee it'll work in later versions of KoboldCpp.
   - Still works on KoboldCpp v.1.117
@@ -145,6 +137,12 @@ No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 - If you happen upon a seed value you'd like to keep, click "Store seed".
   - It will be stored in the "Seed Vault", along with voice and instructions.
     - You can also make a note there, for your own reference.
+- If the "Lock" checkbox is checked, seed value can't change.
+- If deleting the voice field (or set as "Default"), KoboldCpp will just
+  pick a random speaker for each sentence. Might not be what you want.
+- Same-ish if you enter something in the "instructions" field:
+  - It overrides Voice setting (Not really to be used with QwenTTS base
+    afaik).
 
 
 
@@ -168,8 +166,6 @@ No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 ### Seed Vault tab
 
 Just a simple table of stored seed values from the Narration tab.
-In case you like a seed value / voice combo.
-Stores:
  - Voice
  - Seed value
  - Any "instructions" text.
@@ -180,11 +176,13 @@ Stores:
  - If you mess up and want to revert to the last saved settings, go to
    Settings tab and reload settings (don't click "Save Table" then...).
 
+The table is stored in the settings file (settings.json).
+
 | Button | Action |
 |---|---|
 | Remove row | Deletes selected row |
 | Copy to Narration | Copies selected row's data to Narration tab |
-| Save Table | Updates the saved settings.json file with the table |
+| Save Table | Saves table in settings file |
 
 
 ### Settings tab
