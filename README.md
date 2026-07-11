@@ -18,25 +18,14 @@ So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
   - Note save as mp3 may take a bit of time (depending on length etc.)
 - **Live highligthing** of spoken sentences (or TTS chunks)
-- **Highlight margins** (optional), you can set the ratio of screen margin as
-  a "Scroll Denominator" (Ex. 4 means 1/4 of screen height. When the highlight
-  reaches 1/4 textbox height from its top or bottom edge, it will scroll the
-  highlight to the other edge, with the same 1/4 distance.
-  - Thus making the text around the highlighted area visible (if enough text).
-- **TTS seed value management** (Rudimentary. Can reuse seeds):
-- **Extra Pause settings** Add custom pause lengths for various punctuations
-  (in addition to KoboldCpp's TTS engine's pauses. Maybe not so useful).
-  - These only applies to punctuations _between_ chunks sent to KoboldCpp TTS.
-- **Keyboard controls** in addition to GUI:
+- **Highlight margins** (visible non-highlighted text around highlighted)
+- **TTS seed value management** (Rudimentary. Can reuse seeds)
+- **Extra Pause settings** (Maybe not so useful).
+- **Keyboard controls** in addition to GUI buttons:
   - Ctrl + Enter = Play / Speak. When speaking:
     - Space = Pause / resume
     - Arrow left / right = Rewind / Forward
     - ESC = Stop, return to textbox.
-
-One issue might be if your system renders speech slower than real-time,
-there will be longer pauses between sentences (TTS chunks sent to KoboldCpp).
-You can just wait it out and save as wav or mp3 for later listen though.
-(just press Play, then again to Pause, wait, and save it).
 
 
 ### Vibe coded
@@ -206,8 +195,13 @@ rewinding) the currently playing / selected TTS chunk.
 It is set as a ratio of 1/SD of textbox height
 (SD = Scroll Denominator)
 
+ - Ex. SD = 4 means 1/4 of screen height. When the highlight reaches 1/4
+   of the textbox height from its top or bottom edge, it will scroll the
+   highlight to the other edge, with the same 1/4 distance.
+  - Thus making text around the highlighted area visible (if enough text).
+
 - Scroll Margin (checkbox): Enable or disable scroll margin.
-- Scroll denominator      : Sets the margin ratio.
+- Scroll Denominator      : Sets the margin ratio (SD).
 
 
 #### Pauses (milliseconds)
@@ -249,6 +243,10 @@ that's not a sentence end (like "Dr.", "Mr.", etc).
 - TTS speech depends on KoboldCpp configuration.
   (Only between chunk pauses, chunk selection, and chunk preparation depends
    on this TTS Reader).
+- One issue might be if your system renders speech slower than real-time,
+  there will be longer pauses between sentences (TTS chunks sent to KoboldCpp).
+  - You can just wait it out and save as wav or mp3 for later listen though.
+    (just press Play, then again to Pause, wait, and save it).
 
 Btw: At least partly the reason KoboldCpp stopped rendering voice, is probably
 due to me not knowing how to use the KoboldCpp properly, like setting enough
@@ -260,6 +258,7 @@ to a few hours (not tested yet but I see no reason why it shouldn't work).
 At least this way that shouldn't be a concern almost regardless of lenght
 I think. At least not within your system's memory capacity to store audio
 samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
+
 
 
 ## Known Issues
@@ -307,7 +306,8 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 - 2026.07.10 rarons TTS Reader v0.60 - GUI tweaks, better URL pronunciation.
                                        Added "instruction" field for KoboldCpp.
-                                       Failed rich text formatting change detection.
+                                       Failed rich text formatting change
+                                       detection.
 - 2026.07.09 rarons TTS Reader v0.55 - Tweaked chunk rules again (not perfect)
                                        (numbers, URL's), Keyboard controls,
                                        Auto scroll highlight margin settings,
