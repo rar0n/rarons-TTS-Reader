@@ -16,7 +16,6 @@ So KoboldCpp only gets one sentence or text chunk at a time, works much better!
 
 - **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
 - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
-  - Note save as mp3 may take a bit of time (depending on length etc.)
 - **Live highligthing** of spoken sentences (or TTS chunks)
 - **Highlight margins** (visible non-highlighted text around highlighted)
 - **TTS seed value management** (Rudimentary. Can reuse seeds)
@@ -119,6 +118,8 @@ Main tab for TTS
 - Same-ish if you enter something in the "instructions" field:
   - It overrides Voice setting (Not really to be used with QwenTTS base
     afaik).
+- Note save as mp3 may take a bit of time (depending on length etc.)
+  - But shouldn't take more than a few seconds, depending on size, system etc.
 
 
 | Button / Field | Action |
@@ -304,21 +305,19 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 ## Version history
 
-- 2026.07.10 rarons TTS Reader v0.60 - GUI tweaks, better URL pronunciation.
-                                       Added "instruction" field for KoboldCpp.
-                                       Failed rich text formatting change
-                                       detection.
-- 2026.07.09 rarons TTS Reader v0.55 - Tweaked chunk rules again (not perfect)
-                                       (numbers, URL's), Keyboard controls,
-                                       Auto scroll highlight margin settings,
-                                       GUI tweaks, Error prints to terminal.
-- 2026.07.08 rarons TTS Reader v0.50 - More narration rules (numbers, URL's)
-                                       Drag'n'drop files, auto scroll,
-                                       other tweaks.
-- 2026.07.08 rarons TTS Reader v0.45 - TTS seed value, Seed Vault, color tweaks
-- 2026.07.07 rarons TTS Reader v0.40 - Settings tab, highlight tweaks,
-                                       chunk rules, MIT License,
-- 2026.07.05 rarons TTS Reader v0.30 - Save audio, "zoomable" text
-- 2026.07.04 rarons TTS Reader v0.25 - Improved pauses and highlights
--
-- 2026.07.03 rarons TTS Reader v0.20 - Initial release
+- 2026.07.10 rarons TTS Reader v0.60
+  - GUI tweaks, better URL pronunciation.Added "instruction" field for KoboldCpp. Failed rich text formatting change detection.
+- 2026.07.09 rarons TTS Reader v0.55
+  - Tweaked chunk rules again (not perfect, numbers, URL's), Keyboard controls, Auto scroll highlight margin settings, GUI tweaks, Error prints to terminal.
+- 2026.07.08 rarons TTS Reader v0.50
+  - More narration rules (numbers, URL's), Drag'n'drop files, auto scroll, other tweaks.
+- 2026.07.08 rarons TTS Reader v0.45
+  - TTS seed value, Seed Vault, color tweaks
+- 2026.07.07 rarons TTS Reader v0.40
+  - Settings tab, highlight tweaks, chunk rules, MIT License,
+- 2026.07.05 rarons TTS Reader v0.30
+  - Save audio, "zoomable" text
+- 2026.07.04 rarons TTS Reader v0.25
+  - Improved pauses and highlights
+- 2026.07.03 rarons TTS Reader v0.20
+  - Initial release (basically too early but worked ish)
