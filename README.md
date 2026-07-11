@@ -169,7 +169,7 @@ Just a simple table of stored seed values from the Narration tab.
 | Button | Action |
 |---|---|
 | Remove row | Deletes selected row |
-| Copy to Narration | Copies selected row's data to Narration tab |
+| Copy row to Narration | Copies selected row's data to Narration tab |
 | Save Table | Saves table to disk (settings file) |
 
 
