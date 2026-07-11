@@ -120,8 +120,8 @@ No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
 | Voice drop-down list | Voice list fetched from KoboldCpp |
 | ⟳ (Refresh) | Re-fetch the voice list from KoboldCpp |
 | 🎲 RND | Randomize seed |
-| Lock seed | Stops TTS Reader from making a new seed value on next play |
-| Store seed | Store seed in Seed Vault (and disk) |
+| Lock | Locks seed value, preventing changing it |
+| Store seed | Store seed in Seed Vault (and settings / disk) |
 | ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
 | ⏮ Rewind | Jump back one sentence (chunk) and replay |
 | ⏭ Forward | Jump forward one sentence (chunk) |
@@ -183,7 +183,7 @@ Stores:
 | Button | Action |
 |---|---|
 | Remove row | Deletes selected row |
-| Copy seed to Narration | Copies selected row's seed and voice |
+| Copy to Narration | Copies selected row's data to Narration tab |
 | Save Table | Updates the saved settings.json file with the table |
 
 
@@ -197,17 +197,18 @@ it if needed.
 
 | Button | Action |
 |---|---|
-| Save Settings | Saves in settings.json |
-| Load Settings... | Loads settings.json |
+| Save Settings | Saves in settings.json to disk |
+| Load Settings... | Loads settings.json from disk |
 | Reset to Defaults | Just some arbitrary default values |
 
 
 #### Scrolling
 
-Enable / disable scroll margin (how much un-selected text are visible before
-                                or after the selected TTS chunk while speaking)
-Scroll denominator: (SD) Sets the margin size.
-                    The size is set as a ratio of 1/SD of the textbox height.
+- Enable / disable scroll margin (how much un-selected text are visible before
+                                  or after the currently playing TTS chunk)
+
+- Scroll denominator: (SD) Sets the margin size.
+                      The size is set as a ratio of 1/SD of the textbox height.
 
 
 #### Pauses (milliseconds)
