@@ -307,7 +307,7 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 - 2026.07.10 rarons TTS Reader v0.60 - GUI tweaks, better URL pronunciation.
                                        Added "instruction" field for KoboldCpp.
-                                       Failed text formatting change detection.
+                                       Failed rich text formatting change detection.
 - 2026.07.09 rarons TTS Reader v0.55 - Tweaked chunk rules again (not perfect)
                                        (numbers, URL's), Keyboard controls,
                                        Auto scroll highlight margin settings,
