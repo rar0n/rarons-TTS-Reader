@@ -34,7 +34,7 @@ from synth_worker import SynthWorker
 from audio_engine import AudioEngine, PlaybackState
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader v0.57 (2026.07.10)"
+_PROGRAMTITLE = "raron's TTS Reader v0.60 (2026.07.10)"
 
 # Where chunking settings get saved to / auto-loaded from on startup.
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
@@ -699,7 +699,7 @@ class SeedVaultTab(QWidget):
 
         btn_row = QHBoxLayout()
         self.remove_row_btn = QPushButton("🗑 Remove row")
-        self.copy_to_reader_btn = QPushButton("⇦ Copy seed to Narration")
+        self.copy_to_reader_btn = QPushButton("⇦ Copy row to Narration")
         self.save_btn = QPushButton("💾 Save Table")
         self.remove_row_btn.setStyleSheet(_btn_style(_COLOR_DARK_RED))
         self.copy_to_reader_btn.setStyleSheet(_btn_style(_COLOR_DARK_BLUE))
