@@ -1,4 +1,3 @@
-<img width="820" height="628" alt="image" src="https://github.com/user-attachments/assets/88661c96-9771-4e03-b11f-f3cc248df05f" />
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
@@ -310,5 +309,5 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
 ## Version history
 (Removed unnecessary Dev procrastination versions)
 
-- 2026.07.11 rarons TTS Reader v0.62
-  - (Same as pictured) Lets call it initial release, though I have earlier versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.
+- 2026.07.13 rarons TTS Reader v0.63
+  - Lets call it initial release, though I have earlier beta versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.

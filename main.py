@@ -34,7 +34,7 @@ from synth_worker import SynthWorker
 from audio_engine import AudioEngine, PlaybackState
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader v0.62 (2026.07.11)"
+_PROGRAMTITLE = "raron's TTS Reader v0.63 (2026.07.11)"
 
 # Where chunking settings get saved to / auto-loaded from on startup.
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
@@ -1658,8 +1658,10 @@ class MainWindow(QMainWindow):
             cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
             selection = QTextEdit.ExtraSelection()
             selection.cursor = cursor
-            selection.format.setBackground(QColor(255, 213, 79))
-            selection.format.setForeground(QColor(0, 0, 0))
+            #selection.format.setBackground(QColor(255, 213, 79))
+            selection.format.setBackground(QColor(133, 105, 75))
+            #selection.format.setForeground(QColor(0, 0, 0))
+            selection.format.setForeground(QColor(255, 255, 255))
             selections.append(selection)
         self.text_edit.setExtraSelections(selections)
 
