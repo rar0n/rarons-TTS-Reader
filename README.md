@@ -83,8 +83,8 @@ Other TTS models should work as well.
 
     (For simplicity later, save a KoboldCpp config. Reload on next use).
 
-5. launch (KoboldCpp)
-6. Run TTS Reader by starting `python3 main.py` from its folder:
+5. Launch (KoboldCpp)
+6. Run TTS Reader by starting `python3 main.py` from its folder, in Terminal:
     Activate the venv first:
     ```bash
     source venv/bin/activate
