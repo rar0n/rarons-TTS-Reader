@@ -306,7 +306,7 @@ Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
 
 
 ## Version history
-(Removed fluff)
+(Removed unnecessary Dev procrastination versions)
 
 - 2026.07.11 rarons TTS Reader v0.62
-  - (Same as pictured) My versioning nr. is kinda arbitrary.
+  - (Same as pictured) Lets call it initial release, though I have earlier versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.
