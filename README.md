@@ -83,14 +83,14 @@ Other TTS models should work as well.
 
     (For simplicity later, save a KoboldCpp config. Reload on next use).
 
-5. Launch (KoboldCpp)
-6. Run TTS Reader by starting `python3 main.py` from its folder, in Terminal:
+4. Launch (KoboldCpp)
+5. Run TTS Reader by starting `python3 main.py` from its folder, in Terminal:
     Activate the venv first:
     ```bash
     source venv/bin/activate
     python3 main.py
     ```
-7. Paste text (or drag'n'drop a text file - other files might have odd
+6. Paste text (or drag'n'drop a text file - other files might have odd
    formatting), check the KoboldCpp URL/voice fields, hit **▶ Play**
     It can take a few seconds before it starts reading the first time.
 
