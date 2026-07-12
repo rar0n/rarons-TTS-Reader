@@ -73,7 +73,7 @@ Other TTS models should work as well.
 
 1. Run KoboldCpp, I suggest from a terminal / CLI  folder
     (easier to exit by ctrl-C).
-2. In KoboldCpp, Audio tab (from the left panel vertical tabs), set:
+2. In KoboldCpp, either load a previously saved config, or go to Audio tab (from the left panel vertical tabs), set:
     - "TTS model (Text-to-speech)"
     - "WavTokenizer model (Required for some models)"
     - "TTS Voice Dir" (only if you have custom voices, set folder/directory here)
@@ -82,20 +82,22 @@ Other TTS models should work as well.
       "OpenAI-Compat. API Server".
 
     (For simplicity later, save a KoboldCpp config. Reload on next use).
-4. Run TTS Reader by starting `python3 main.py` from its folder
+
+5. launch (KoboldCpp)
+6. Run TTS Reader by starting `python3 main.py` from its folder:
     Activate the venv first:
     ```bash
     source venv/bin/activate
     python3 main.py
     ```
-5. Paste text (or drag'n'drop a text file - other files might have odd
+7. Paste text (or drag'n'drop a text file - other files might have odd
    formatting), check the KoboldCpp URL/voice fields, hit **▶ Play**
     It can take a few seconds before it starts reading the first time.
 
 
 #### Note
 
-No need to use the KoboldCpp web page GUI that auto starts. Just exit it.
+No need to use the KoboldCpp web page GUI that probably auto starts a web browser. Just exit it.
 
 
 ## Controls / notes
@@ -302,7 +304,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Contact: On my github page://github.com/rar0n/rarons-TTS-Reader/
+Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rarons-TTS-Reader)
 
 
 ## Version history
