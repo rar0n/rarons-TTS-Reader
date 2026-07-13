@@ -120,9 +120,18 @@ Main tab for TTS
 - Same-ish if you enter something in the "instructions" field:
   - It overrides Voice setting (Not really to be used with QwenTTS base
     afaik).
-- Note save as mp3 may take a bit of time (depending on length etc.)
-  - But shouldn't take more than a few seconds, depending on size, system specs etc.
 
+
+##### Notes
+
+- Save as mp3 may take a bit of time (depending on length etc.).
+  But shouldn't take more than a few seconds, depending on size, system specs etc.
+
+- Saving a subtitle requires clicking the Save button, and selecting "SubRip subtitles" as file type (.srt).
+  Thus you have to click "Save" twice to also save the audio. This can only be done after the audio has finished rendering.
+
+
+#### Controls
 
 | Button / Field | Action |
 |---|---|
@@ -138,14 +147,14 @@ Main tab for TTS
 | ⏹ Stop | Stops playback and rendering |
 | Save | Save as wav,mp3 or srt (subtitles) (when finished rendering) |
 
-#### Keyboard / mouse controls:
+##### Keyboard / mouse controls:
 
 | Keys | Action |
 |---|---|
 | Ctrl + mouse scrollwheel | Zoom text in/out |
 | Ctrl + Enter | Play (speak) |
 
-##### While speaking
+###### While speaking
 
 | Keys | Action |
 |---|---|
@@ -225,6 +234,8 @@ Actually, you might want most of these to 0 (zero). Experiment.
 
 #### Chunk sizing
 
+(This will also affect how short / long stretches of text are in subtitles, if saving as subtitles)
+
 - Min chunk chars
   - Minimum size of a TTS chunk sent to TTS.
     - Lower it for more granular chunks / highlighting.
@@ -245,7 +256,7 @@ that's not a sentence end (like "Dr.", "Mr.", etc).
 - Saving as mp3 might take a little while (a few seconds, depending on size),
   during which time it will be unresponsive. Be patient :)
 - Unusual punctuation might cause issues (with speech rhytm, highlighting).
-   (Though most of this should be fixed now).
+   (Though most(?) of this should be fixed now).
 - TTS speech depends on KoboldCpp configuration.
   (Only between chunk pauses, chunk selection, and chunk preparation depends
    on this TTS Reader).
@@ -311,4 +322,3 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
 
 - 2026.07.13 - v0.64
              - Lets call it initial release, though I have earlier beta versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.
-  
