@@ -1,4 +1,3 @@
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/d88bf412-2f15-479c-af85-3cba8bd3a343" />
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
@@ -6,17 +5,17 @@
   stutter or stop on long single-shot TTS requests.
 
 A small Python app that reads pasted text aloud through KoboldCpp's
-TTS API, with live highlighting one sentence at a time, better pauses
-(hopefully), and basic controls.
-
-So KoboldCpp only gets one sentence or text chunk at a time, works much better!
+TTS API, with live highlighting, better pauses (hopefully), better
+handling of punctuations and numbers. Can save rendered audio and subtitles!
 
 
 ### Features
 
 - **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
+- **Live highligthing** (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
 - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
-- **Live highligthing** (Per sentence / TTS chunk)
+- **Save subtitles** as srt (same TTS chunks as subtitle. Set file type in save window)
+- Better handling of punctuations and numbers (----, 100,000, 200,000, 3.1415 etc).
 - Highlight margins (visible non-highlighted text around highlighted)
 - TTS seed value management (Rudimentary. Can reuse seeds)
 - Extra Pause settings (Maybe not so useful).
@@ -121,7 +120,7 @@ Main tab for TTS
   - It overrides Voice setting (Not really to be used with QwenTTS base
     afaik).
 - Note save as mp3 may take a bit of time (depending on length etc.)
-  - But shouldn't take more than a few seconds, depending on size, system etc.
+  - But shouldn't take more than a few seconds, depending on size, system specs etc.
 
 
 | Button / Field | Action |
@@ -136,7 +135,7 @@ Main tab for TTS
 | ⏮ Rewind | Jump back one sentence (chunk) and replay |
 | ⏭ Forward | Jump forward one sentence (chunk) |
 | ⏹ Stop | Stops playback and rendering |
-| Save Audio | Save as wav or mp3 (when finished rendering) |
+| Save | Save as wav,mp3 or srt (subtitles) (when finished rendering) |
 
 #### Keyboard / mouse controls:
 
@@ -245,6 +244,7 @@ that's not a sentence end (like "Dr.", "Mr.", etc).
 - Saving as mp3 might take a little while (a few seconds, depending on size),
   during which time it will be unresponsive. Be patient :)
 - Unusual punctuation might cause issues (with speech rhytm, highlighting).
+   (Though most of this should be fixed now).
 - TTS speech depends on KoboldCpp configuration.
   (Only between chunk pauses, chunk selection, and chunk preparation depends
    on this TTS Reader).
@@ -268,8 +268,6 @@ samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
 
 ## Known Issues
 
-- Long runs of dashes (not so long even), like "------" may make KoboldCpp
-  stutter, or crash / hang. (To be fixed...)
 - There's no "continue from selection" function, for now just delete the
   preceding text in the textbox if need be after a full stop.
 - (Linux Mint) You probaby will get a few warnings about ALSA underruns.
@@ -310,5 +308,5 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
 ## Version history
 (Removed unnecessary Dev procrastination versions)
 
-- 2026.07.13 rarons TTS Reader v0.63
-  - Lets call it initial release, though I have earlier beta versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.
+- 2026.07.13 - v0.64
+             - Lets call it initial release, though I have earlier beta versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.

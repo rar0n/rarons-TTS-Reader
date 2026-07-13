@@ -1,0 +1,24 @@
+Unneccesarily detailed dev-run history procrastinations (Via Vibe coding with Claude)
+-----------------------------------------------------------------------------------------------------------------
+
+- 2026.07.11 - v0.64 - Save as subtitle (.srt) added! (Thanks again, Claude!)
+- 2026.07.11 - v0.63 - Minor GUI color change (highlight colors)
+- 2026.07.11 - v0.62 - Highlight distance clamp, removed failed rich text style
+                         change detector.
+- 2026.07.10 - v0.60 - GUI tweaks, better URL pronunciation.Added "instruction"
+                         field for KoboldCpp.
+                         Failed rich text formatting change detection.
+- 2026.07.09 - v0.55 - Tweaked chunk rules again (numbers, URL's), GUI tweaks,
+                         Keyboard controls, Error prints to terminal,
+                         Auto scroll highlight margin settings,
+- 2026.07.08 - v0.50 - More narration rules (numbers, URL's), Drag'n'drop files
+                         auto scroll, other tweaks.
+- 2026.07.08 - v0.45 - TTS seed value, Seed Vault, color tweaks
+                         Kinda relies on undocumented "seed" field in API, as
+                         there's no way of getting back which seed was used,
+                         by KoboldCpp, luckily we could just send our own.
+- 2026.07.07 - v0.40 - Settings tab, highlight tweaks, chunk rules, MIT License
+- 2026.07.05 - v0.30 - Save audio, "zoomable" text
+- 2026.07.04 - v0.25 - Tweaked pauses and highlights
+- 2026.07.03 - v0.20 - Initial release (basically too early but worked ish)
+

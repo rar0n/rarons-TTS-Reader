@@ -34,7 +34,7 @@ from synth_worker import SynthWorker
 from audio_engine import AudioEngine, PlaybackState
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader v0.63 (2026.07.11)"
+_PROGRAMTITLE = "raron's TTS Reader v0.64 (2026.07.13)"
 
 # Where chunking settings get saved to / auto-loaded from on startup.
 DEFAULT_SETTINGS_PATH = Path(__file__).resolve().parent / "settings.json"
@@ -68,7 +68,7 @@ _COLOR_DISABLED_AMBER = "#3c3122"
 _DISABLED_TEXT_COLOR = "#787878"
 
 # The transport row's middle buttons (Rewind/Forward/Stop) get this
-# height; the two end buttons (Play, Save Audio) get the taller one --
+# height; the two end buttons (Play, Save) get the taller one --
 # see the comment where these are applied for why.
 _TRANSPORT_BTN_HEIGHT = 30
 _TRANSPORT_END_BTN_HEIGHT = 38
@@ -149,6 +149,18 @@ def _with_extension(path: str, ext: str) -> str:
     replacing whatever extension (if any) is already there."""
     base, _ = os.path.splitext(path)
     return base + ext
+
+
+def _srt_timestamp(seconds: float) -> str:
+    """Formats a seconds offset as an SRT timestamp: HH:MM:SS,mmm."""
+    total_ms = max(0, int(round(seconds * 1000)))
+    ms = total_ms % 1000
+    total_s = total_ms // 1000
+    s = total_s % 60
+    total_m = total_s // 60
+    m = total_m % 60
+    h = total_m // 60
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
 def _print_error(message: str):
@@ -1037,7 +1049,7 @@ class MainWindow(QMainWindow):
         self.rewind_btn = QPushButton("⏮ Rewind")
         self.forward_btn = QPushButton("⏭ Forward")
         self.stop_btn = QPushButton("⏹ Stop")
-        self.save_btn = QPushButton("💾 Save Audio")
+        self.save_btn = QPushButton("💾 Save")
 
         # Each button's full look (enabled color + its own muted disabled
         # color) is set once, here, via QPushButton:disabled -- so toggling
@@ -1053,7 +1065,7 @@ class MainWindow(QMainWindow):
         # "Pause" vs "Resume" on the same button) have different font
         # metrics, so auto-sizing made buttons wobble in height depending
         # on their current label. The transport buttons get a shorter
-        # fixed height and the two end buttons (Play, Save Audio) a
+        # fixed height and the two end buttons (Play, Save) a
         # taller one; combined with AlignTop below, that's what makes the
         # end buttons sit a bit lower/taller than the middle ones -- on
         # purpose now, and consistent regardless of label.
@@ -1117,7 +1129,7 @@ class MainWindow(QMainWindow):
         self.randomize_seed_btn.setEnabled(not self._transport_playing and not self.lock_seed_checkbox.isChecked())
 
     def _set_save_audio_ready(self, ready: bool):
-        """Enables/disables Save Audio. Its color (dark green once ready,
+        """Enables/disables Save. Its color (dark green once ready,
         a muted grey-green while there isn't audio to save yet) is baked
         into its stylesheet's :disabled state, so this only ever needs to
         flip setEnabled()."""
@@ -1590,6 +1602,34 @@ class MainWindow(QMainWindow):
     # ---- saving -------------------------------------------------------------
 
     def _on_save_clicked(self):
+        # Same readiness bar for every format below (audio or subtitles):
+        # every chunk needs to have actually finished synthesizing, since
+        # that's what both the mixed-down audio and the subtitle timings
+        # are built from. Checked up front so a not-ready save fails fast
+        # instead of only after the user's already picked a filename.
+        if not self.engine.is_fully_synthesized():
+            QMessageBox.warning(
+                self, "Not ready",
+                "Not all chunks have finished synthesizing yet (or one of them errored out).",
+            )
+            return
+
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self, "Save", "reading.wav",
+            "WAV Audio (*.wav);;MP3 Audio (*.mp3);;SubRip Subtitles (*.srt)",
+        )
+        if not path:
+            return
+
+        # Qt doesn't reliably rewrite the typed filename's extension when
+        # the user only changes the filter dropdown, so the selected
+        # filter -- not whatever extension happens to already be in the
+        # text box -- decides the actual format and gets forced onto path.
+        if "srt" in selected_filter.lower():
+            path = _with_extension(path, ".srt")
+            self._save_subtitles(path)
+            return
+
         result = self.engine.render_full_audio()
         if result is None:
             QMessageBox.warning(
@@ -1599,16 +1639,6 @@ class MainWindow(QMainWindow):
             return
         data, samplerate = result
 
-        path, selected_filter = QFileDialog.getSaveFileName(
-            self, "Save audio", "reading.wav", "WAV Audio (*.wav);;MP3 Audio (*.mp3)"
-        )
-        if not path:
-            return
-
-        # Qt doesn't reliably rewrite the typed filename's extension when
-        # the user only changes the filter dropdown, so the selected
-        # filter -- not whatever extension happens to already be in the
-        # text box -- decides the actual format and gets forced onto path.
         want_mp3 = "mp3" in selected_filter.lower()
         path = _with_extension(path, ".mp3" if want_mp3 else ".wav")
 
@@ -1617,6 +1647,36 @@ class MainWindow(QMainWindow):
         else:
             sf.write(path, data, samplerate)
             self.status_label.setText(f"Saved {path}")
+
+    def _save_subtitles(self, path: str):
+        """Writes one SRT cue per chunk. Timings come from the same
+        per-chunk durations (plus each chunk's configured pause) that
+        the narration status line accumulates during playback -- here
+        just summed from the very start rather than from wherever
+        playback currently sits, since accurate timing needs every
+        chunk's *actual* rendered duration, not the word-count estimate
+        used before rendering finishes."""
+        _, _, _, durations = self.engine.get_progress_snapshot()
+        if not durations or any(d is None for d in durations):
+            QMessageBox.warning(
+                self, "Not ready",
+                "Not all chunks have finished synthesizing yet (or one of them errored out).",
+            )
+            return
+
+        lines = []
+        start = 0.0
+        for i, chunk in enumerate(self.chunks):
+            end = start + durations[i]
+            lines.append(str(i + 1))
+            lines.append(f"{_srt_timestamp(start)} --> {_srt_timestamp(end)}")
+            lines.append(chunk.text.strip())
+            lines.append("")
+            start = end + chunk.pause_ms / 1000.0
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        self.status_label.setText(f"Saved {path}")
 
     def _save_as_mp3(self, data: np.ndarray, samplerate: int, path: str):
         try:
