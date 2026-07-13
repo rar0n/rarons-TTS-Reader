@@ -2,13 +2,13 @@
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
-- Built to work around limited context memory, making KoboldCpp's TTS
-  stutter or stop on long single-shot TTS requests.
-
 A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting, better pauses (hopefully), better
-handling of punctuations and numbers. Can save rendered audio and subtitles!
+handling of (some/most?) punctuations and numbers.
+Can save rendered audio and subtitles (for use in a player later).
 
+- Built to work around limited context memory, making KoboldCpp's TTS
+  stutter or stop on long single-shot TTS requests.
 
 ### Features
 
@@ -311,3 +311,4 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
 
 - 2026.07.13 - v0.64
              - Lets call it initial release, though I have earlier beta versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.
+  
