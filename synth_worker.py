@@ -1,6 +1,6 @@
 """
 Runs ahead of playback, synthesizing each chunk in order on a background
-thread so that by the time the AudioEngine wants chunk N, it's usually
+thread so that by the time the TTSAudioEngine wants chunk N, it's usually
 already sitting in the cache. Runs independently of play/pause state, so
 pausing playback doesn't pause synthesis (it just gets further ahead).
 """

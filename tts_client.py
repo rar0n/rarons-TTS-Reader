@@ -18,10 +18,16 @@ class TTSError(Exception):
 class KoboldTTSClient:
     def __init__(self, base_url: str = "http://127.0.0.1:5001",
                  voice: str = "default", timeout: int = 60,
-                 seed: Optional[int] = None, instruction: str = ""):
+                 seed: Optional[int] = None, instruction: str = "",
+                 model: str = "kcpp"):
         self.base_url = base_url.rstrip("/")
         self.voice = voice
         self.timeout = timeout
+        # Sent as the "model" field of the /v1/audio/speech payload.
+        # KoboldCpp's OpenAI-compat endpoint doesn't actually route on
+        # this, but some other OpenAI-compatible TTS backends do -- left
+        # configurable (Settings tab) rather than hardcoded so those work too.
+        self.model = model or "kcpp"
         # When set, every synthesize() call sends this exact seed, which
         # pins the voice so it no longer drifts between chunks. When left
         # None, KoboldCpp picks its own (effectively random) seed each call.
@@ -48,7 +54,7 @@ class KoboldTTSClient:
         effective_instruction = self.instruction if instruction is None else instruction
 
         payload = {
-            "model": "kcpp",
+            "model": self.model,
             "input": text,
             "voice": self.voice,
             "response_format": "wav",

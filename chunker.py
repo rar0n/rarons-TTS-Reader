@@ -115,14 +115,18 @@ _TOKEN_RE = re.compile(
     # side are left for `number`/`word` to tokenize as normal.
     r"|(?P<numlistsep>(?<=\d)[.,](?= \d))"
     r"|(?P<punct>[,;:.!?\u2014\u2013])"
-    # A run of 2+ plain hyphens ("------", a common plain-text section
-    # divider). Tried before word so it isn't just swallowed as ordinary
-    # word characters -- treated in `_tokenize` as a paragraph-level break
-    # (like a blank line) rather than being spoken, since KoboldCpp can
-    # also crash on a long unbroken run of "-". A lone "-" (hyphenated
-    # word, or a dash used as an aside) is ordinary usage and falls
-    # through to `word` untouched.
-    r"|(?P<dashrun>-{2,})"
+    # A run of 2+ plain hyphens and/or underscores ("------", "______",
+    # a common plain-text section divider -- also covers "_-_-_"-style
+    # mixed runs). Tried before word so it isn't just swallowed as
+    # ordinary word characters -- treated in `_tokenize` as a
+    # paragraph-level break (like a blank line) rather than being spoken,
+    # since KoboldCpp can also crash on a long unbroken run of "-"/"_". A
+    # lone "-" or "_" (hyphenated word, snake_case, or a dash used as an
+    # aside) is ordinary usage and falls through to `word` untouched. Note
+    # this also catches double-underscore code identifiers like
+    # "__init__"/"__all__" -- an accepted tradeoff for treating "_" the
+    # same as "-".
+    r"|(?P<dashrun>[-_]{2,})"
     # A run of ordinary characters -- but each step first checks it isn't
     # about to walk into a "-\n<word char>" wrap (left for hyphenjoin), the
     # start of a URL (left for the url alternative above), the start of
@@ -130,8 +134,8 @@ _TOKEN_RE = re.compile(
     # alternative above -- without this check, word would already have
     # swallowed straight through the leading digit before the tokenizer's
     # scan position ever reached it, and number would never get a turn),
-    # or the start of a 2+ hyphen run (left for dashrun above).
-    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)(?!\d+(?:[.,]+\d+)+)(?!-{2,})[^\n,;:.!?\u2014\u2013])+)"
+    # or the start of a 2+ hyphen/underscore run (left for dashrun above).
+    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)(?!\d+(?:[.,]+\d+)+)(?![-_]{2,})[^\n,;:.!?\u2014\u2013])+)"
 )
 
 
@@ -200,14 +204,14 @@ def _normalize_word(raw: str) -> str:
 
     Underscores are folded in here too (not just spaces/tabs) because
     KoboldCpp may crash, or stutters, or ignore on literal "_" characters
-    - common in snake_case identifiers or "___" markdown-style separators
-    pasted from code or notes. One underscore or a run of several are
-    both just a word separator as far as TTS Reader is concerned, same as
-    multiple spaces.
+    - common in snake_case identifiers. A single underscore between two
+    word characters (e.g. "snake_case") is just a word separator as far
+    as TTS Reader is concerned, same as a space.
 
-    (Runs of 2+ hyphens never reach here -- they're carved off as their
-    own "dashrun" token by `_TOKEN_RE`/`_tokenize`, before `word` ever
-    gets a turn, and treated as a paragraph-level pause instead.)
+    (Runs of 2+ hyphens and/or underscores never reach here -- they're
+    carved off as their own "dashrun" token by `_TOKEN_RE`/`_tokenize`,
+    before `word` ever gets a turn, and treated as a paragraph-level
+    pause instead -- see PARAGRAPH_PAUSE_MS.)
 
     Inter-token spacing is already handled separately by `pending_glue`
     (set from punctuation and single-newline handling), so a leftover

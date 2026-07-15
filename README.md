@@ -1,42 +1,64 @@
 <img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/4036b7ef-ea7a-4938-89ac-fa67f6ab7a17" />
 
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/12ee3051-d22f-4c50-9a08-7d7c2351dce3" />
+
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
+- Built to work around limited context memory for KoboldCpp's TTS
+- Now also with STT (Speech To Text) long-form transcription
+  (TTS Reader is a bit of a misnomer now).
+
 A small Python app that reads pasted text aloud through KoboldCpp's
-TTS API, with live highlighting, better pauses (hopefully), better
-handling of (some/most?) punctuations and numbers.
+TTS API, with live highlighting, better handling of (some/most?)
+punctuations and numbers.
+
+Can now also do audio or video transcripts via Whisper
 Can save rendered audio and subtitles (for use in a player later).
 
-- Built to work around limited context memory, making KoboldCpp's TTS
-  stutter or stop on long single-shot TTS requests.
 
 ### Features
 
-- **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
-- **Live highligthing** (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
-- **Save audio** as wav or mp3 (when it's finished rendering the TTS)
-- **Save subtitles** as srt (same TTS chunks as subtitle. Set file type in save window)
-- Better handling of punctuations and numbers (----, 100,000, 200,000, 3.1415 etc).
-- Highlight margins (visible non-highlighted text around highlighted)
-- TTS seed value management (Rudimentary. Can reuse seeds)
-- Extra Pause settings (Maybe not so useful).
-- Keyboard controls in addition to GUI buttons:
-  - Ctrl + Enter = Play / Speak. When speaking:
-    - Space = Pause / resume
-    - Arrow left / right = Rewind / Forward
-    - ESC = Stop, return to textbox.
+Basically
+  - **TTS** - Text to Speech (Narration)
+  - **STT** - Speech to Text (transcriptions)
+  - **Save subtitles** both for TTS and SST.
+
+For TTS:
+  - **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
+  - Live highligthing (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
+  - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
+  - Better TTS handling of punctuations and numbers (----, 100,000, 200,000, 3.1415 etc).
+  - Highlight margins (visible non-highlighted text around highlighted)
+  - TTS seed value management (Rudimentary. Can reuse seeds)
+  - Extra Pause settings (Maybe not so useful).
+  - Keyboard controls in addition to GUI buttons:
+    - Ctrl + Enter = Play / Speak. When speaking:
+      - Space = Pause / resume
+      - Arrow left / right = Rewind / Forward
+      - ESC = Stop, return to textbox.
+
+For STT:
+  - **Long audio transcriptions** Also some video formats (tested 3 hour video).
+  - **make subtitles**
+  - Save as plain text too
+    - Some rudimentary plain text formatting (newlines, basically)
 
 
 ### Vibe coded
 
-Yes. Full disclosure: I don't know Python that well. Claude does though :-)
-As I found KoboldCpp TTS flunked out on longer-form text I vibe-coded this
-with Claude Sonnet 5 on Extra / High  and Medium effort, over now quite a
-few free sessions (which is awesome btw, so thanks to Anthropic for that!).
+- Kind of an experimental vibe coding project.
+- Not all settings are necessarily that useful btw. Experiment!
 
-Note 2: Most of the source code comments is Claude's. Some (not all) of the
-        reasoning behind _why_ something is done is Claude's assumption and
-        a bit off. But a lot is on-point as well!
+Yes. Full disclosure: I don't know Python that well. Claude does though :-)
+As I found KoboldCpp TTS flunked out on longer-form text  I vibe-coded this.
+(due to limited context memory as far as I understand it - KoboldCpp is still
+**awesome**!),
+I started usingClaude Sonnet 5 on Extra / High  and Medium effort, over now
+quite a few free sessions (Also awesome, so thanks to Anthropic for that!).
+
+Note: Most of the source code comments is Claude's. Some (not all) of the
+      reasoning behind _why_ something is done is Claude's assumption and
+      a bit off. But a lot is on-point as well!
 
 
     2026 Ragnar Aronsen (raron) ( But mostly Claude :) )
@@ -49,11 +71,16 @@ Note 2: Most of the source code comments is Claude's. Some (not all) of the
 [TTS models for narration](https://huggingface.co/koboldcpp/tts/tree/main) (as also linked from KoboldCpp's page above)
 
 
-Me I've so far only tried, and use:
+For TTS (I've so far only tried, and use):
  - [Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf) (Can also do voice cloning)
  - [qwen3-tts-tokenizer-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/qwen3-tts-tokenizer-q8_0.gguf)
-
 Other TTS models should work as well.
+
+For STT
+ - [whisper-small-q5_1.bin](https://huggingface.co/koboldcpp/whisper/tree/main)
+
+ As also linked from the amazing [KoboldCpp's Wiki page](https://github.com/LostRuins/koboldcpp/wiki#what-models-does-koboldcpp-support-what-architectures-are-supported), along with other models.
+
 
 
 ## Install
@@ -101,6 +128,11 @@ No need to use the KoboldCpp web page GUI that probably auto starts a web browse
 
 
 ## Controls / notes
+
+- WIP, to be restructured, probably.
+
+(STT description not done atm, most should be self explanatory, except maybe some STT settings, but there aretool tips)
+
 
 ### Narration tab
 
@@ -320,5 +352,5 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
 ## Version history
 (Removed unnecessary Dev procrastination versions)
 
-- 2026.07.13 - v0.64
-             - Lets call it initial release, though I have earlier beta versions here (that nobody dl'd). My versioning nr. is kinda arbitrary.
+- 2026.07.15 - v0.70
+             - STT added!

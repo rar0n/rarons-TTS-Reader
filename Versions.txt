@@ -1,6 +1,7 @@
 Unneccesarily detailed dev-run history procrastinations (Via Vibe coding with Claude)
 -----------------------------------------------------------------------------------------------------------------
 
+- 2026.07.15 - v0.70 - STT added! (Thanks again to Claude! Awesome guy)
 - 2026.07.11 - v0.64 - Save as subtitle (.srt) added! (Thanks again, Claude!)
 - 2026.07.11 - v0.63 - Minor GUI color change (highlight colors)
 - 2026.07.11 - v0.62 - Highlight distance clamp, removed failed rich text style
