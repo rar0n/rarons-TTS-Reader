@@ -22,14 +22,14 @@ from PySide6.QtWidgets import (
 )
 
 from audio_chunker import (
-    ChunkerConfig, SUBTITLE_MAX_CHARS, SUBTITLE_LINGER_MAX_FULL_S,
-    SUBTITLE_LINGER_LONG_PAUSE_S,
+    ChunkerConfig, SUBTITLE_MAX_CHARS, SUBTITLE_LINGER_LONG_PAUSE_S,
 )
 
 from ui_common import (
     DEFAULT_SETTINGS_PATH, STATUS_STYLE_STT, COLOR_DARK_BLUE,
-    COLOR_DARK_GREEN, COLOR_DARK_RED, STANDARD_BTN_HEIGHT, btn_style,
-    print_error, load_json_dict, save_json_merged, ElidingLabel,
+    COLOR_DARK_GREEN, COLOR_DARK_RED, COLOR_DARK_PURPLE,
+    STANDARD_BTN_HEIGHT, btn_style, print_error, load_json_dict,
+    save_json_merged, ElidingLabel,
 )
 
 # settings.json keys this tab owns.
@@ -56,12 +56,15 @@ class STTSettingsTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._building = True
+        self._next_row_id = 0
         self._build_ui()
         self._populate_scan_fields(self._factory_scan_defaults())
         self._populate_options_fields(self._factory_options_defaults())
         self._populate_subtitle_fields(self._factory_subtitle_defaults())
         self._populate_linger_fields(self._factory_linger_defaults())
         self._populate_table(_FACTORY_PRESETS)
+        if self.preset_table.rowCount() > 1:
+            self._active_preset_id = self._row_id_at(1)
         self._building = False
         self._try_autoload()
 
@@ -119,6 +122,7 @@ class STTSettingsTab(QWidget):
 
         self.vad_type_combo = QComboBox()
         self.vad_type_combo.addItem("RMS (stdlib audioop)")
+        self.vad_type_combo.setMaximumWidth(220)
         self.vad_type_combo.setToolTip(
             "Only one VAD implementation for now -- this is what audio_chunker.py "
             "actually does. A dropdown so more can be added later without "
@@ -129,6 +133,7 @@ class STTSettingsTab(QWidget):
         self.threshold_spin = QSpinBox()
         self.threshold_spin.setRange(0, 32767)
         self.threshold_spin.setSingleStep(50)
+        self.threshold_spin.setMaximumWidth(100)
         self.threshold_spin.setToolTip(
             "Raw RMS threshold (16-bit PCM, 0-32767). Below this counts as "
             "silence. Very recording-dependent -- tune by testing against "
@@ -139,6 +144,7 @@ class STTSettingsTab(QWidget):
         self.window_spin = QSpinBox()
         self.window_spin.setRange(5, 500)
         self.window_spin.setSingleStep(5)
+        self.window_spin.setMaximumWidth(100)
         self.window_spin.setSuffix(" ms")
         self.window_spin.setToolTip("Size of each analysis window while scanning for silence.")
         scan_form.addRow("Analysis window:", self.window_spin)
@@ -146,6 +152,7 @@ class STTSettingsTab(QWidget):
         self.min_gap_spin = QSpinBox()
         self.min_gap_spin.setRange(0, 5000)
         self.min_gap_spin.setSingleStep(10)
+        self.min_gap_spin.setMaximumWidth(100)
         self.min_gap_spin.setSuffix(" ms")
         self.min_gap_spin.setToolTip(
             "Minimum continuous below-threshold duration to count as a real "
@@ -183,6 +190,7 @@ class STTSettingsTab(QWidget):
         self.subtitle_max_chars_spin = QSpinBox()
         self.subtitle_max_chars_spin.setRange(20, 300)
         self.subtitle_max_chars_spin.setSingleStep(5)
+        self.subtitle_max_chars_spin.setMaximumWidth(100)
         self.subtitle_max_chars_spin.setSuffix(" chars")
         self.subtitle_max_chars_spin.setToolTip(
             "Roughly how many characters (not words -- word length varies too "
@@ -206,26 +214,17 @@ class STTSettingsTab(QWidget):
         )
         linger_form.addRow("", self.linger_enabled_checkbox)
 
-        self.linger_max_full_spin = QSpinBox()
-        self.linger_max_full_spin.setRange(0, 10000)
-        self.linger_max_full_spin.setSingleStep(100)
-        self.linger_max_full_spin.setSuffix(" ms")
-        self.linger_max_full_spin.setToolTip(
-            "Pauses up to this long are bridged completely -- the subtitle "
-            "stays on screen right up until the next one starts, no blank gap."
-        )
-        linger_form.addRow("Fully bridge pauses up to:", self.linger_max_full_spin)
-
         self.linger_long_pause_spin = QSpinBox()
-        self.linger_long_pause_spin.setRange(0, 5000)
+        self.linger_long_pause_spin.setRange(0, 10000)
         self.linger_long_pause_spin.setSingleStep(100)
+        self.linger_long_pause_spin.setMaximumWidth(100)
         self.linger_long_pause_spin.setSuffix(" ms")
         self.linger_long_pause_spin.setToolTip(
-            "For pauses longer than the above, still linger this long past the "
-            "original end before going blank, rather than cutting off instantly. "
-            "The screen does go blank for the remainder of a genuinely long pause."
+            "Pauses linger this long past the original end before going blank, "
+            "rather than cutting off instantly. The screen does go blank for "
+            "the remainder of a genuinely long pause."
         )
-        linger_form.addRow("Longer pauses still linger:", self.linger_long_pause_spin)
+        linger_form.addRow("Linger past pauses:", self.linger_long_pause_spin)
 
         outer.addWidget(linger_group)
 
@@ -251,6 +250,8 @@ class STTSettingsTab(QWidget):
         self.preset_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.preset_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.preset_table.verticalHeader().setVisible(False)
+        self.preset_table.setSortingEnabled(True)
+        self.preset_table.horizontalHeader().setSortIndicatorShown(True)
         table_layout.addWidget(self.preset_table)
 
         table_btn_row = QHBoxLayout()
@@ -269,7 +270,7 @@ class STTSettingsTab(QWidget):
         table_btn_row.addStretch(1)
 
         self.use_preset_btn = QPushButton("Use with Transcriber")
-        self.use_preset_btn.setStyleSheet(btn_style(COLOR_DARK_GREEN))
+        self.use_preset_btn.setStyleSheet(btn_style(COLOR_DARK_PURPLE))
         self.use_preset_btn.setFixedHeight(STANDARD_BTN_HEIGHT)
         self.use_preset_btn.clicked.connect(self._on_use_preset_clicked)
         table_btn_row.addWidget(self.use_preset_btn)
@@ -279,9 +280,9 @@ class STTSettingsTab(QWidget):
 
         # -- Save / Load / Reset -- kept outside the scroll area, always visible.
         btn_row = QHBoxLayout()
-        self.save_btn = QPushButton("Save Settings")
+        self.save_btn = QPushButton("💾 Save Settings")
         self.save_btn.setStyleSheet(btn_style(COLOR_DARK_GREEN))
-        self.load_btn = QPushButton("Load Settings…")
+        self.load_btn = QPushButton("📂 Load Settings…")
         self.load_btn.setStyleSheet(btn_style(COLOR_DARK_BLUE))
         self.reset_btn = QPushButton("Reset to Defaults")
         self.reset_btn.setStyleSheet(btn_style(COLOR_DARK_RED))
@@ -299,10 +300,12 @@ class STTSettingsTab(QWidget):
         self.settings_status.setStyleSheet(STATUS_STYLE_STT)
         page_outer.addWidget(self.settings_status)
 
-        # The row currently backing get_active_config() -- defaults to the
-        # "Average pace" preset (index 1) once the table's populated;
+        # The preset currently backing get_active_config(), tracked by a
+        # stable per-row id (not row index) since the table is sortable and
+        # row positions shift when the user clicks a column header.
+        # Defaults to the "Average pace" preset once the table's populated;
         # _on_use_preset_clicked updates this on selection.
-        self._active_preset_row = 1
+        self._active_preset_id = None
 
     # ---- gathering / populating: scan fields ------------------------------
 
@@ -384,22 +387,18 @@ class STTSettingsTab(QWidget):
     def _factory_linger_defaults() -> dict:
         return {
             "enabled": True,
-            "max_full_ms": int(SUBTITLE_LINGER_MAX_FULL_S * 1000),
             "long_pause_ms": int(SUBTITLE_LINGER_LONG_PAUSE_S * 1000),
         }
 
     def _gather_linger_fields(self) -> dict:
         return {
             "enabled": self.linger_enabled_checkbox.isChecked(),
-            "max_full_ms": self.linger_max_full_spin.value(),
             "long_pause_ms": self.linger_long_pause_spin.value(),
         }
 
     def _populate_linger_fields(self, settings: dict):
         if "enabled" in settings:
             self.linger_enabled_checkbox.setChecked(bool(settings["enabled"]))
-        if "max_full_ms" in settings:
-            self.linger_max_full_spin.setValue(int(settings["max_full_ms"]))
         if "long_pause_ms" in settings:
             self.linger_long_pause_spin.setValue(int(settings["long_pause_ms"]))
 
@@ -434,7 +433,25 @@ class STTSettingsTab(QWidget):
     def _gather_presets(self) -> list:
         return [self._row_to_dict(r) for r in range(self.preset_table.rowCount())]
 
+    def _row_id_at(self, row: int):
+        """Reads back the stable id stashed on a row's first cell (Qt.UserRole),
+        used instead of row index since sorting reorders rows."""
+        item = self.preset_table.item(row, 0)
+        return item.data(Qt.UserRole) if item is not None else None
+
+    def _find_row_by_id(self, row_id) -> int:
+        if row_id is not None:
+            for row in range(self.preset_table.rowCount()):
+                if self._row_id_at(row) == row_id:
+                    return row
+        return -1
+
     def _add_table_row(self, preset: dict):
+        # Sorting must be off while a row is being inserted and filled --
+        # otherwise a re-sort can fire between individual setItem() calls
+        # and scatter a single row's cells across the wrong rows.
+        was_sorting = self.preset_table.isSortingEnabled()
+        self.preset_table.setSortingEnabled(False)
         row = self.preset_table.rowCount()
         self.preset_table.insertRow(row)
         values = [
@@ -445,13 +462,23 @@ class STTSettingsTab(QWidget):
             str(preset.get("target_s", 15.0)),
             str(preset.get("range_s", 5.0)),
         ]
+        row_id = self._next_row_id
+        self._next_row_id += 1
         for col, value in enumerate(values):
-            self.preset_table.setItem(row, col, QTableWidgetItem(value))
+            item = QTableWidgetItem(value)
+            if col == 0:
+                item.setData(Qt.UserRole, row_id)
+            self.preset_table.setItem(row, col, item)
+        if was_sorting:
+            self.preset_table.setSortingEnabled(True)
+        return row_id
 
     def _populate_table(self, presets: list):
+        self.preset_table.setSortingEnabled(False)
         self.preset_table.setRowCount(0)
         for preset in presets:
             self._add_table_row(preset)
+        self.preset_table.setSortingEnabled(True)
 
     # ---- table row management ------------------------------------------
 
@@ -464,18 +491,18 @@ class STTSettingsTab(QWidget):
         if row < 0:
             QMessageBox.information(self, "No row selected", "Select a row to remove first.")
             return
+        removed_id = self._row_id_at(row)
         self.preset_table.removeRow(row)
-        if self._active_preset_row == row:
-            self._active_preset_row = min(row, self.preset_table.rowCount() - 1)
-        elif self._active_preset_row > row:
-            self._active_preset_row -= 1
+        if self._active_preset_id == removed_id:
+            new_row = min(row, self.preset_table.rowCount() - 1)
+            self._active_preset_id = self._row_id_at(new_row) if new_row >= 0 else None
 
     def _on_use_preset_clicked(self):
         row = self.preset_table.currentRow()
         if row < 0:
             QMessageBox.information(self, "No row selected", "Select a preset row first.")
             return
-        self._active_preset_row = row
+        self._active_preset_id = self._row_id_at(row)
         description = self.get_active_preset_description()
         self.settings_status.setText(f"Using preset: {description}")
         self.preset_changed.emit(description)
@@ -487,8 +514,8 @@ class STTSettingsTab(QWidget):
         whichever preset row was last applied via "Use with Transcriber"
         (falling back to row 0 if none was ever explicitly chosen)."""
         scan = self._gather_scan_fields()
-        row = self._active_preset_row
-        if row < 0 or row >= self.preset_table.rowCount():
+        row = self._find_row_by_id(self._active_preset_id)
+        if row < 0:
             row = 0
         preset = self._row_to_dict(row) if self.preset_table.rowCount() else {}
 
@@ -504,8 +531,8 @@ class STTSettingsTab(QWidget):
         )
 
     def get_active_preset_description(self) -> str:
-        row = self._active_preset_row
-        if row < 0 or row >= self.preset_table.rowCount():
+        row = self._find_row_by_id(self._active_preset_id)
+        if row < 0:
             return "No preset selected -- using built-in defaults."
         preset = self._row_to_dict(row)
         name = preset["name"] or f"Row {row + 1}"
@@ -533,9 +560,6 @@ class STTSettingsTab(QWidget):
 
     def get_subtitle_linger_enabled(self) -> bool:
         return self.linger_enabled_checkbox.isChecked()
-
-    def get_subtitle_linger_max_full_ms(self) -> int:
-        return self.linger_max_full_spin.value()
 
     def get_subtitle_linger_long_pause_ms(self) -> int:
         return self.linger_long_pause_spin.value()
@@ -602,5 +626,5 @@ class STTSettingsTab(QWidget):
         self._populate_subtitle_fields(self._factory_subtitle_defaults())
         self._populate_linger_fields(self._factory_linger_defaults())
         self._populate_table(_FACTORY_PRESETS)
-        self._active_preset_row = 1
+        self._active_preset_id = self._row_id_at(1) if self.preset_table.rowCount() > 1 else None
         self.settings_status.setText("Reset to built-in defaults")

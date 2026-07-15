@@ -62,7 +62,7 @@ class SeedVaultTab(QWidget):
 
         btn_row = QHBoxLayout()
         self.remove_row_btn = QPushButton("🗑 Remove row")
-        self.copy_to_reader_btn = QPushButton("⇦ Copy row to Narration")
+        self.copy_to_reader_btn = QPushButton("Copy to Narration")
         self.save_btn = QPushButton("💾 Save Table")
         self.remove_row_btn.setStyleSheet(btn_style(COLOR_DARK_RED))
         self.copy_to_reader_btn.setStyleSheet(btn_style(COLOR_DARK_BLUE))
@@ -73,8 +73,10 @@ class SeedVaultTab(QWidget):
         self.copy_to_reader_btn.clicked.connect(self._on_copy_to_reader_clicked)
         self.save_btn.clicked.connect(self._on_save_clicked)
         btn_row.addWidget(self.remove_row_btn)
-        btn_row.addWidget(self.copy_to_reader_btn)
+        btn_row.addStretch(1)
         btn_row.addWidget(self.save_btn)
+        btn_row.addStretch(1)
+        btn_row.addWidget(self.copy_to_reader_btn)
         layout.addLayout(btn_row)
 
         self.status_label = ElidingLabel("")

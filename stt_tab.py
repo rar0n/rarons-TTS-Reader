@@ -216,10 +216,6 @@ class STTTab(QWidget):
     def _build_ui(self):
         outer = QVBoxLayout(self)
 
-        self.active_preset_label = ElidingLabel("")
-        self.active_preset_label.setStyleSheet("color: #a0a0a0;")
-        outer.addWidget(self.active_preset_label)
-
         file_row = QHBoxLayout()
         self.path_edit = QLineEdit()
         self.path_edit.setPlaceholderText("Path to an audio file…")
@@ -274,10 +270,6 @@ class STTTab(QWidget):
         self.progress_bar.setStyleSheet(progress_style("#2b2b2b", COLOR_DARK_PURPLE))
         self.progress_bar.setFixedHeight(18)
         progress_row.addWidget(self.progress_bar, 1)
-
-        self.char_count_label = QLabel("0 characters")
-        self.char_count_label.setStyleSheet("color: #a0a0a0;")
-        progress_row.addWidget(self.char_count_label)
         outer.addLayout(progress_row)
 
         # Ctrl+scroll zoom, same as the Narration tab's text box.
@@ -286,9 +278,15 @@ class STTTab(QWidget):
         self.output_edit.textChanged.connect(self._on_output_text_changed)
         outer.addWidget(self.output_edit, 1)
 
+        status_row = QHBoxLayout()
         self.status_label = ElidingLabel("")
         self.status_label.setStyleSheet(STATUS_STYLE_STT)
-        outer.addWidget(self.status_label)
+        status_row.addWidget(self.status_label, 1)
+
+        self.char_count_label = QLabel("0 characters")
+        self.char_count_label.setStyleSheet(STATUS_STYLE_STT)
+        status_row.addWidget(self.char_count_label)
+        outer.addLayout(status_row)
 
     # ---- helpers --------------------------------------------------------
 
@@ -337,12 +335,6 @@ class STTTab(QWidget):
             return self._stt_settings_tab.get_subtitle_linger_enabled()
         return True
 
-    def _current_subtitle_linger_max_full_s(self) -> float:
-        if self._stt_settings_tab is not None:
-            return self._stt_settings_tab.get_subtitle_linger_max_full_ms() / 1000.0
-        from audio_chunker import SUBTITLE_LINGER_MAX_FULL_S
-        return SUBTITLE_LINGER_MAX_FULL_S
-
     def _current_subtitle_linger_long_pause_s(self) -> float:
         if self._stt_settings_tab is not None:
             return self._stt_settings_tab.get_subtitle_linger_long_pause_ms() / 1000.0
@@ -354,10 +346,10 @@ class STTTab(QWidget):
             description = self._stt_settings_tab.get_active_preset_description()
         else:
             description = "No STT Settings tab wired in -- using built-in defaults."
-        self.active_preset_label.setText(f"Active speaker preset: {description}")
+        self._set_status(f"Active speaker preset: {description}")
 
     def _on_preset_changed(self, description: str):
-        self.active_preset_label.setText(f"Active speaker preset: {description}")
+        self._set_status(f"Active speaker preset: {description}")
 
     def _set_status(self, text: str):
         self._base_status = text
@@ -441,6 +433,8 @@ class STTTab(QWidget):
             QMessageBox.warning(self, "File not found", f"No such file:\n{path}")
             return
 
+        self._set_status("Initializing…")
+
         # Resolve to a usable WAV path/bytes, converting via ffmpeg first
         # if needed. WAV inputs pass through untouched. Non-WAV inputs are
         # always transcoded to a real temp *file* (never piped through
@@ -473,7 +467,6 @@ class STTTab(QWidget):
         self._active_config = self._current_chunker_config()
         self.output_edit.clear()
         self.progress_bar.setValue(0)
-        self._refresh_active_preset_label()
         langcode = self._current_langcode()
         suppress_non_speech = self._current_suppress_non_speech()
         client = self._make_client()
@@ -599,10 +592,11 @@ class STTTab(QWidget):
                     entries.append((start_s, end_s, stripped))
 
         if self._current_subtitle_linger_enabled():
+            linger_s = self._current_subtitle_linger_long_pause_s()
             entries = apply_subtitle_linger(
                 entries,
-                max_full_linger_s=self._current_subtitle_linger_max_full_s(),
-                long_pause_linger_s=self._current_subtitle_linger_long_pause_s(),
+                max_full_linger_s=linger_s,
+                long_pause_linger_s=linger_s,
             )
 
         lines = []

@@ -372,13 +372,12 @@ def split_chunk_for_subtitles(text: str, start_s: float, end_s: float,
     return entries
 
 
-# Defaults for apply_subtitle_linger, below.
-SUBTITLE_LINGER_MAX_FULL_S = 1.5    # gaps up to this are bridged completely
-SUBTITLE_LINGER_LONG_PAUSE_S = 0.5  # longer gaps still get this much of a linger
+# Default for apply_subtitle_linger, below.
+SUBTITLE_LINGER_LONG_PAUSE_S = 0.5  # gaps get this much of a linger
 
 
 def apply_subtitle_linger(entries: List[tuple],
-                            max_full_linger_s: float = SUBTITLE_LINGER_MAX_FULL_S,
+                            max_full_linger_s: float = SUBTITLE_LINGER_LONG_PAUSE_S,
                             long_pause_linger_s: float = SUBTITLE_LINGER_LONG_PAUSE_S) -> List[tuple]:
     """Extends each SRT-style (start_s, end_s, text) entry's end time to
     reduce blank/no-subtitle stretches between consecutive entries --
@@ -387,13 +386,16 @@ def apply_subtitle_linger(entries: List[tuple],
     flickery for short pauses (a breath, a beat) that a viewer wouldn't
     expect to blank the screen for.
 
-    - Gaps up to max_full_linger_s are bridged completely: the subtitle
-      stays on screen right up until the next one starts, no blank gap.
-    - Longer gaps still get a short linger (long_pause_linger_s) past the
-      original end, rather than disappearing instantly, but the screen
-      does go blank for the remainder of a genuinely long pause -- a
-      subtitle sitting on screen through a multi-second silence reads as
-      stale/wrong, not helpful.
+    Every gap gets a linger of up to long_pause_linger_s past the original
+    end, rather than disappearing instantly; a gap shorter than that is
+    bridged completely (the subtitle stays on screen right up until the
+    next one starts, no blank gap). The screen does go blank for the
+    remainder of a genuinely long pause -- a subtitle sitting on screen
+    through a multi-second silence reads as stale/wrong, not helpful.
+
+    max_full_linger_s is accepted for backward compatibility but is no
+    longer distinct from long_pause_linger_s -- both gap sizes use the
+    same linger duration now.
 
     Entries must already be in time order; overlapping entries (end_s
     already >= the next entry's start_s) are left untouched."""
