@@ -1,13 +1,15 @@
 <img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
 
+
 <img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/12ee3051-d22f-4c50-9a08-7d7c2351dce3" />
 
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
-- Built to work around limited context memory for KoboldCpp's TTS
+- Built to work around limited context memory for KoboldCpp
+    with long-form text generation and audio / video transcription.
 - Now also with STT (Speech To Text) long-form transcription
-  (TTS Reader is a bit of a misnomer now).
+    (TTS Reader is a bit of a misnomer now).
 
 A small Python app that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting, better handling of (some/most?)
@@ -22,7 +24,7 @@ Can save rendered audio and subtitles (for use in a player later).
 Basically
   - **TTS** - Text to Speech (Narration)
   - **STT** - Speech to Text (transcriptions)
-  - **Save subtitles** both for TTS and SST.
+  - **Save subtitles** both for TTS and STT.
 
 For TTS:
   - **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
@@ -290,24 +292,14 @@ that's not a sentence end (like "Dr.", "Mr.", etc).
   during which time it will be unresponsive. Be patient :)
 - Unusual punctuation might cause issues (with speech rhytm, highlighting).
    (Though most(?) of this should be fixed now).
-- TTS speech depends on KoboldCpp configuration.
+- This is justa wrapper for KoboldCpp's TTS and STT API's.
+  - Function depends entirely on KoboldCpp and its configuration.
   (Only between chunk pauses, chunk selection, and chunk preparation depends
    on this TTS Reader).
 - One issue might be if your system renders speech slower than real-time,
   there will be longer pauses between sentences (TTS chunks sent to KoboldCpp).
   - You can just wait it out and save as wav or mp3 for later listen though.
     (just press Play, then again to Pause, wait, and save it).
-
-Btw: At least partly the reason KoboldCpp stopped rendering voice, is probably
-due to me not knowing how to use the KoboldCpp properly, like setting enough
-context memory.
-
-Still - I doubt **very much** it could do 40+ minutes (tested with this app)
-to a few hours (not tested yet but I see no reason why it shouldn't work).
-
-At least this way that shouldn't be a concern almost regardless of lenght
-I think. At least not within your system's memory capacity to store audio
-samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
 
 
 
@@ -317,9 +309,8 @@ samples. Rouglyish 350 MB / hour, about half on disk as wav, even less as mp3.
   preceding text in the textbox if need be after a full stop.
 - (Linux Mint) You probaby will get a few warnings about ALSA underruns.
   (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). Ignore it :)
-- Scrolling in the Settings tab might inadvertedly change numeric values
-  if your mouse cursor hovers over a field while scrolling.
-  (I made them narrower so that's easier to avoid now)
+- Scrolling in any of the Settings tabs might inadvertedly change numeric
+  values if your mouse cursor hovers over a field while scrolling.
 
 
 ## License
