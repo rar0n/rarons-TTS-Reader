@@ -1,10 +1,11 @@
 """
 STTSettingsTab: tunables for audio_chunker.py's silence detection, chunk
 sizing, and subtitle segmentation, plus transcription options (language
-code, suppress-non-speech, chunked mode) and a table of speaker-speed
-presets (Name / Comma / Period / Paragraph / Target length / Range) that
-can be edited and applied with one click -- similar in spirit to the Seed
-Vault tab's table, but for chunking behaviour instead of TTS seeds.
+code, suppress-non-speech) and a table of Speaker presets
+(Name / Comma / Period / Paragraph / Target length / Range / Speech rate)
+that can be edited.
+Similar to the Seed Vault tab's table, but for chunking behaviour
+instead of TTS seeds.
 
 Persists into the same shared settings.json as the other tabs, via
 ui_common's save_json_merged/load_json_dict (merge-on-save, so this
@@ -39,13 +40,13 @@ _KEY_OPTIONS = "STT_OPTIONS"                 # langcode / suppress / chunked mod
 _KEY_SUBTITLE = "STT_SUBTITLE_SEGMENTATION"  # subtitle segmentation group
 _KEY_LINGER = "STT_SUBTITLE_LINGER"          # subtitle lingering group
 
-_TABLE_COLUMNS = ["Name", "Comma (ms)", "Period (ms)", "Paragraph (ms)", "Target (s)", "Range (s)"]
+_TABLE_COLUMNS = ["Name", "Comma (ms)", "Period (ms)", "Paragraph (ms)", "Target (s)", "Range (s)", "WPM"]
 
 # Shipped as a starting point -- editable/removable like any other row.
 _FACTORY_PRESETS = [
-    {"name": "Slow / deliberate speaker", "comma_ms": 300, "period_ms": 700, "paragraph_ms": 1500, "target_s": 15.0, "range_s": 5.0},
-    {"name": "Average pace (default)",    "comma_ms": 250, "period_ms": 500, "paragraph_ms": 1200, "target_s": 15.0, "range_s": 5.0},
-    {"name": "Fast talker / podcast",     "comma_ms": 180, "period_ms": 350, "paragraph_ms": 900,  "target_s": 10.0, "range_s": 4.0},
+    {"name": "Slow / deliberate speaker", "comma_ms": 300, "period_ms": 700, "paragraph_ms": 1500, "target_s": 15.0, "range_s": 5.0, "wpm": 120},
+    {"name": "Average pace (default)",    "comma_ms": 250, "period_ms": 500, "paragraph_ms": 1200, "target_s": 15.0, "range_s": 5.0, "wpm": 150},
+    {"name": "Fast talker / podcast",     "comma_ms": 180, "period_ms": 350, "paragraph_ms": 900,  "target_s": 10.0, "range_s": 4.0, "wpm": 175},
 ]
 
 
@@ -91,7 +92,7 @@ class STTSettingsTab(QWidget):
 
         self.langcode_edit = QLineEdit("en")
         self.langcode_edit.setToolTip(
-            "Passed through to Whisper as-is, e.g. \"en\", \"no\", \"auto\" "
+            "Passed through to Whisper as-is, e.g. \"en\", \"no\", \"auto\"\n"
             "(exact accepted values depend on the loaded whisper model)."
         )
         self.langcode_edit.setFixedWidth(80)
@@ -99,20 +100,10 @@ class STTSettingsTab(QWidget):
 
         self.suppress_checkbox = QCheckBox("Suppress non-speech")
         self.suppress_checkbox.setToolTip(
-            "Whisper's suppress_non_speech flag -- tries to drop tokens "
+            "Whisper's suppress_non_speech flag -- tries to drop tokens\n"
             "like [music] or [laughter] from the output."
         )
         options_form.addRow("", self.suppress_checkbox)
-
-        self.chunk_checkbox = QCheckBox("Split into chunks (long audio)")
-        self.chunk_checkbox.setChecked(True)
-        self.chunk_checkbox.setToolTip(
-            "Splits the file at silence boundaries before sending each piece "
-            "to Whisper -- needed for anything over ~30s, and required for "
-            "SRT export (per-chunk timestamps). Turn off only for quick "
-            "single-shot tests on short clips."
-        )
-        options_form.addRow("", self.chunk_checkbox)
 
         outer.addWidget(options_group)
 
@@ -124,9 +115,7 @@ class STTSettingsTab(QWidget):
         self.vad_type_combo.addItem("RMS (stdlib audioop)")
         self.vad_type_combo.setMaximumWidth(220)
         self.vad_type_combo.setToolTip(
-            "Only one VAD implementation for now -- this is what audio_chunker.py "
-            "actually does. A dropdown so more can be added later without "
-            "reshuffling the rest of this tab."
+            "Only one VAD (Voice Activation Detection) implementation for now..."
         )
         scan_form.addRow("VAD type:", self.vad_type_combo)
 
@@ -135,8 +124,8 @@ class STTSettingsTab(QWidget):
         self.threshold_spin.setSingleStep(50)
         self.threshold_spin.setMaximumWidth(100)
         self.threshold_spin.setToolTip(
-            "Raw RMS threshold (16-bit PCM, 0-32767). Below this counts as "
-            "silence. Very recording-dependent -- tune by testing against "
+            "Raw RMS threshold (16-bit PCM, 0-32767). Below this counts as\n"
+            "silence. Very recording-dependent -- tune by testing against\n"
             "your own files."
         )
         scan_form.addRow("Amplitude threshold:", self.threshold_spin)
@@ -155,9 +144,10 @@ class STTSettingsTab(QWidget):
         self.min_gap_spin.setMaximumWidth(100)
         self.min_gap_spin.setSuffix(" ms")
         self.min_gap_spin.setToolTip(
-            "Minimum continuous below-threshold duration to count as a real "
-            "pause at all -- shorter dips (a plosive consonant, a quick "
-            "breath) are bridged over rather than treated as a gap."
+            "Minimum continuous below-threshold duration to count as a gap.\n"
+            " - Used for a possible chunk split, but actual chunk split is decided\n"
+            "   by the Speaker Preset table's Chunk Target and Range settings.\n"
+            "Unless there are no gaps within range, in which case a hard split is made."
         )
         scan_form.addRow("Minimum gap duration:", self.min_gap_spin)
 
@@ -170,8 +160,8 @@ class STTSettingsTab(QWidget):
         self.subtitle_enabled_checkbox = QCheckBox("Split long chunks into multiple SRT entries")
         self.subtitle_enabled_checkbox.setChecked(True)
         self.subtitle_enabled_checkbox.setToolTip(
-            "Splits each chunk's text into several shorter SRT entries sized "
-            "for on-screen reading, instead of one long entry per chunk. "
+            "Splits each chunk's text into several shorter SRT entries sized\n"
+            "for on-screen reading, instead of one long entry per chunk.\n"
             "Only affects Save SRT, not the plain-text box/save."
         )
         subtitle_form.addRow("", self.subtitle_enabled_checkbox)
@@ -179,11 +169,11 @@ class STTSettingsTab(QWidget):
         self.subtitle_snap_checkbox = QCheckBox("Prioritize detected pauses near split points")
         self.subtitle_snap_checkbox.setChecked(True)
         self.subtitle_snap_checkbox.setToolTip(
-            "When splitting a chunk's text, snap the split's timing to a real "
-            "detected pause if one exists close to where the split would "
-            "otherwise land. If off, timing is always estimated purely from "
-            "word-count proportion. Either way this is approximate -- "
-            "KoboldCpp doesn't return real per-word timestamps."
+            "When splitting a chunk's text, snap the split's timing to a real\n"
+            "detected pause if one exists close to where the split would\n"
+            "otherwise land. If off, timing is always estimated purely from\n"
+            "word-count proportion. Either way this is approximate\n"
+            "(KoboldCpp doesn't return real per-word timestamps)."
         )
         subtitle_form.addRow("", self.subtitle_snap_checkbox)
 
@@ -193,11 +183,39 @@ class STTSettingsTab(QWidget):
         self.subtitle_max_chars_spin.setMaximumWidth(100)
         self.subtitle_max_chars_spin.setSuffix(" chars")
         self.subtitle_max_chars_spin.setToolTip(
-            "Roughly how many characters (not words -- word length varies too "
-            "much to be a good proxy for on-screen reading time) each SRT "
-            "entry should target before it gets split again."
+            "How many characters max in each SRT entry\n"
+            "before it gets segmented (sub-splits pr. chunk)."
         )
         subtitle_form.addRow("Max entry length:", self.subtitle_max_chars_spin)
+
+        self.subtitle_adjust_start_checkbox = QCheckBox(
+            "Subtitle start adjustment (experimental)"
+        )
+        self.subtitle_adjust_start_checkbox.setChecked(False)
+        self.subtitle_adjust_start_checkbox.setToolTip(
+            "Tries to fix subtitles appearing too early when a chunk starts with\n"            "music/noise directly followed by speech, with no detected\n"
+            "pause between them to mark where speech actually begins.\n\n"
+            "Before any subtitle segmentation: estimates how long each\n"
+            "chunk's text should take to speak (from the active preset's\n"
+            "Speech rate) and, if that's less than the fraction set below, of\n"
+            "the chunk's actual audio length, delays the subtitle's start\n"
+            "so it ends when the chunk ends -- this delayed start is then\n"
+            "what segmentation splits from, if enabled."
+        )
+        subtitle_form.addRow(self.subtitle_adjust_start_checkbox)
+
+        self.subtitle_adjust_start_ratio_spin = QDoubleSpinBox()
+        self.subtitle_adjust_start_ratio_spin.setRange(0.05, 0.95)
+        self.subtitle_adjust_start_ratio_spin.setSingleStep(0.05)
+        self.subtitle_adjust_start_ratio_spin.setDecimals(2)
+        self.subtitle_adjust_start_ratio_spin.setMaximumWidth(100)
+        self.subtitle_adjust_start_ratio_spin.setToolTip(
+            "The adjustment above fires when estimated speech time is less\n"
+            "than this fraction of the chunk's actual audio length. E.g.\n"
+            "0.5 fires when the text is estimated to take under half the\n"
+            "chunk's length to speak."
+        )
+        subtitle_form.addRow("Adjustment trigger ratio:", self.subtitle_adjust_start_ratio_spin)
 
         outer.addWidget(subtitle_group)
 
@@ -208,9 +226,8 @@ class STTSettingsTab(QWidget):
         self.linger_enabled_checkbox = QCheckBox("Linger through pauses instead of going blank")
         self.linger_enabled_checkbox.setChecked(True)
         self.linger_enabled_checkbox.setToolTip(
-            "Without this, a subtitle disappears the instant its chunk's "
-            "speech ends and nothing shows again until the next one starts -- "
-            "which flickers for short, ordinary pauses (a breath, a beat)."
+            "Without this, a subtitle disappears the instant its chunk\n"
+            "time ends and nothing shows again until the next one starts"
         )
         linger_form.addRow("", self.linger_enabled_checkbox)
 
@@ -220,33 +237,37 @@ class STTSettingsTab(QWidget):
         self.linger_long_pause_spin.setMaximumWidth(100)
         self.linger_long_pause_spin.setSuffix(" ms")
         self.linger_long_pause_spin.setToolTip(
-            "Pauses linger this long past the original end before going blank, "
-            "rather than cutting off instantly. The screen does go blank for "
+            "Pauses linger this long past the original end before going blank,\n"
+            "rather than cutting off instantly. The screen does go blank for\n"
             "the remainder of a genuinely long pause."
         )
         linger_form.addRow("Linger past pauses:", self.linger_long_pause_spin)
 
         outer.addWidget(linger_group)
 
-        # -- Speaker-speed presets --
-        table_group = QGroupBox("Speaker-speed presets")
+        # -- Speaker presets --
+        table_group = QGroupBox("Speaker Presets")
         table_layout = QVBoxLayout(table_group)
 
         hint = QLabel(
-            "Comma/Period/Paragraph are pause-tier durations (ms) used for text "
-            "formatting; Paragraph also sets the \"trim this silence out "
-            "entirely\" threshold. Target/Range (s) set the elastic chunk-length "
-            "search window sent to Whisper. Select a row and click \"Use with "
-            "Transcriber\" to apply it."
+            "Comma/Period/Paragraph are pause-tier durations (ms) used for plain "
+            "text formatting.\n"
+            "Target/Range (s) set the search window to find silence gaps for audio chunks to send to Whisper (Set below absolute max 30s!).\n"
+            "WPM (speech rate) is only used to estimate spoken duration for the subtitle start-adjustment feature above.\n\n"
+            "Select a row and click \"Use with Transcriber\" to apply it."
         )
         hint.setWordWrap(True)
         table_layout.addWidget(hint)
 
         self.preset_table = QTableWidget(0, len(_TABLE_COLUMNS))
         self.preset_table.setHorizontalHeaderLabels(_TABLE_COLUMNS)
-        self.preset_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        for col in range(1, len(_TABLE_COLUMNS)):
-            self.preset_table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        # Interactive (not Stretch/ResizeToContents) on every column so the
+        # user can drag column borders to resize -- initial widths are set
+        # content-based once after each populate (see _populate_table),
+        # then left alone until the user drags one.
+        header = self.preset_table.horizontalHeader()
+        for col in range(len(_TABLE_COLUMNS)):
+            header.setSectionResizeMode(col, QHeaderView.Interactive)
         self.preset_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.preset_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.preset_table.verticalHeader().setVisible(False)
@@ -343,13 +364,12 @@ class STTSettingsTab(QWidget):
 
     @staticmethod
     def _factory_options_defaults() -> dict:
-        return {"langcode": "en", "suppress_non_speech": False, "chunked_mode": True}
+        return {"langcode": "en", "suppress_non_speech": False}
 
     def _gather_options_fields(self) -> dict:
         return {
             "langcode": self.langcode_edit.text().strip() or "en",
             "suppress_non_speech": self.suppress_checkbox.isChecked(),
-            "chunked_mode": self.chunk_checkbox.isChecked(),
         }
 
     def _populate_options_fields(self, settings: dict):
@@ -357,20 +377,26 @@ class STTSettingsTab(QWidget):
             self.langcode_edit.setText(str(settings["langcode"]))
         if "suppress_non_speech" in settings:
             self.suppress_checkbox.setChecked(bool(settings["suppress_non_speech"]))
-        if "chunked_mode" in settings:
-            self.chunk_checkbox.setChecked(bool(settings["chunked_mode"]))
+        # "chunked_mode" is intentionally no longer read -- transcription is
+        # always chunked now, so an older settings.json's saved value (if
+        # any) is just ignored rather than erroring.
 
     # ---- gathering / populating: subtitle segmentation ---------------------
 
     @staticmethod
     def _factory_subtitle_defaults() -> dict:
-        return {"enabled": True, "snap_to_gaps": True, "max_chars": SUBTITLE_MAX_CHARS}
+        return {
+            "enabled": True, "snap_to_gaps": True, "max_chars": SUBTITLE_MAX_CHARS,
+            "adjust_start_enabled": False, "adjust_start_ratio": 0.5,
+        }
 
     def _gather_subtitle_fields(self) -> dict:
         return {
             "enabled": self.subtitle_enabled_checkbox.isChecked(),
             "snap_to_gaps": self.subtitle_snap_checkbox.isChecked(),
             "max_chars": self.subtitle_max_chars_spin.value(),
+            "adjust_start_enabled": self.subtitle_adjust_start_checkbox.isChecked(),
+            "adjust_start_ratio": self.subtitle_adjust_start_ratio_spin.value(),
         }
 
     def _populate_subtitle_fields(self, settings: dict):
@@ -380,6 +406,10 @@ class STTSettingsTab(QWidget):
             self.subtitle_snap_checkbox.setChecked(bool(settings["snap_to_gaps"]))
         if "max_chars" in settings:
             self.subtitle_max_chars_spin.setValue(int(settings["max_chars"]))
+        if "adjust_start_enabled" in settings:
+            self.subtitle_adjust_start_checkbox.setChecked(bool(settings["adjust_start_enabled"]))
+        if "adjust_start_ratio" in settings:
+            self.subtitle_adjust_start_ratio_spin.setValue(float(settings["adjust_start_ratio"]))
 
     # ---- gathering / populating: subtitle lingering ------------------------
 
@@ -428,6 +458,7 @@ class STTSettingsTab(QWidget):
             "paragraph_ms": cell_int(3, 1200),
             "target_s": cell_float(4, 15.0),
             "range_s": cell_float(5, 5.0),
+            "wpm": cell_int(6, 150),
         }
 
     def _gather_presets(self) -> list:
@@ -461,6 +492,7 @@ class STTSettingsTab(QWidget):
             str(preset.get("paragraph_ms", 1200)),
             str(preset.get("target_s", 15.0)),
             str(preset.get("range_s", 5.0)),
+            str(preset.get("wpm", 150)),
         ]
         row_id = self._next_row_id
         self._next_row_id += 1
@@ -479,12 +511,26 @@ class STTSettingsTab(QWidget):
         for preset in presets:
             self._add_table_row(preset)
         self.preset_table.setSortingEnabled(True)
+        self.preset_table.resizeColumnsToContents()
 
     # ---- table row management ------------------------------------------
 
     def _on_add_row_clicked(self):
         # _add_table_row fills in sane defaults for any keys not given.
         self._add_table_row({"name": "New preset"})
+
+    def add_preset_row(self, preset: dict) -> int:
+        """Public entry point for other tabs to add a row from externally-
+        known values -- currently used by STTTab's "Add to Preset Table"
+        button, which passes the currently active chunker config plus a
+        live-observed WPM. Selects and scrolls to the new row so it's
+        obvious something happened. Returns the new row's stable id."""
+        row_id = self._add_table_row(preset)
+        row = self._find_row_by_id(row_id)
+        if row >= 0:
+            self.preset_table.selectRow(row)
+            self.preset_table.scrollToItem(self.preset_table.item(row, 0))
+        return row_id
 
     def _on_remove_row_clicked(self):
         row = self.preset_table.currentRow()
@@ -528,6 +574,7 @@ class STTSettingsTab(QWidget):
             pause_comma_ms=preset.get("comma_ms", ChunkerConfig.pause_comma_ms),
             pause_sentence_ms=preset.get("period_ms", ChunkerConfig.pause_sentence_ms),
             pause_paragraph_ms=preset.get("paragraph_ms", ChunkerConfig.pause_paragraph_ms),
+            speech_rate_wpm=preset.get("wpm", ChunkerConfig.speech_rate_wpm),
         )
 
     def get_active_preset_description(self) -> str:
@@ -538,16 +585,13 @@ class STTSettingsTab(QWidget):
         name = preset["name"] or f"Row {row + 1}"
         return (f"{name} — target {preset['target_s']:.0f}s ±{preset['range_s']:.0f}s, "
                 f"comma {preset['comma_ms']}ms / period {preset['period_ms']}ms / "
-                f"paragraph {preset['paragraph_ms']}ms")
+                f"paragraph {preset['paragraph_ms']}ms, ~{preset['wpm']} wpm")
 
     def get_langcode(self) -> str:
         return self.langcode_edit.text().strip() or "en"
 
     def get_suppress_non_speech(self) -> bool:
         return self.suppress_checkbox.isChecked()
-
-    def get_chunked_mode(self) -> bool:
-        return self.chunk_checkbox.isChecked()
 
     def get_subtitle_segmentation_enabled(self) -> bool:
         return self.subtitle_enabled_checkbox.isChecked()
@@ -557,6 +601,12 @@ class STTSettingsTab(QWidget):
 
     def get_subtitle_max_chars(self) -> int:
         return self.subtitle_max_chars_spin.value()
+
+    def get_subtitle_adjust_start_enabled(self) -> bool:
+        return self.subtitle_adjust_start_checkbox.isChecked()
+
+    def get_subtitle_adjust_start_ratio(self) -> float:
+        return self.subtitle_adjust_start_ratio_spin.value()
 
     def get_subtitle_linger_enabled(self) -> bool:
         return self.linger_enabled_checkbox.isChecked()

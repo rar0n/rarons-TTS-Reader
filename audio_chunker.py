@@ -83,6 +83,12 @@ class ChunkerConfig:
     # None -> falls back to pause_paragraph_ms.
     long_silence_ms: Optional[int] = None
 
+    # Rough average speaking rate (words per minute) for whichever
+    # speaker-speed preset is active -- used only to *estimate* how long
+    # a chunk's transcribed text should take to speak, for the subtitle
+    # start-time adjustment below. Not used anywhere else.
+    speech_rate_wpm: float = 150.0
+
     def resolved_long_silence_ms(self) -> int:
         return self.long_silence_ms if self.long_silence_ms is not None else self.pause_paragraph_ms
 
@@ -302,6 +308,101 @@ SUBTITLE_MAX_CHARS = 100
 # many seconds of the proportional (word-count-based) estimate -- too far
 # off and it's probably an unrelated pause, not the one we're looking for.
 _SUBTITLE_GAP_SNAP_TOLERANCE_S = 1.5
+
+
+def estimate_speech_duration_s(text: str, speech_rate_wpm: float) -> float:
+    """Rough estimate of how long `text` would take to speak aloud, from
+    a plain word-count / words-per-minute calculation. No punctuation-
+    aware pacing (a comma-heavy sentence and a terse one with the same
+    word count get the same estimate) -- just a first-order guess, good
+    enough to compare against a chunk's actual measured duration."""
+    words = text.split()
+    if not words or speech_rate_wpm <= 0:
+        return 0.0
+    words_per_second = speech_rate_wpm / 60.0
+    return len(words) / words_per_second
+
+
+# When a chunk's estimated speech duration is judged too unreliable to
+# use directly (see adjust_chunk_start_for_speech), this is the fallback
+# fraction of the chunk's *actual* duration assumed to be speech, counted
+# backwards from the chunk's end. A fixed starting point rather than
+# anything derived from the (already-distrusted) word-count estimate.
+_SUBTITLE_START_ADJUST_FALLBACK_RATIO = 0.5
+
+
+def adjust_chunk_start_for_speech(text: str, start_s: float, end_s: float,
+                                    local_gaps: List[Gap], speech_rate_wpm: float,
+                                    trigger_ratio: float, is_last_chunk: bool = False) -> tuple:
+    """Compensates for a chunk that begins with non-speech audio (music,
+    noise, ...) immediately followed by speech with no detected pause in
+    between -- which otherwise makes the subtitle for that chunk appear
+    far too early relative to when the speaker is actually heard, since
+    the chunk's measured start_s is where the *audio* begins, not where
+    the *speech* begins.
+
+    Estimates how long `text` should take to speak using speech_rate_wpm
+    (via estimate_speech_duration_s). If that estimate is less than
+    trigger_ratio times the chunk's actual duration, the word-count
+    estimate is treated as too unreliable to position the subtitle
+    directly (it's a rough guess, easily thrown off by transcription
+    quirks) -- so instead, the chunk is trimmed to assume speech occupied
+    only _SUBTITLE_START_ADJUST_FALLBACK_RATIO of its actual duration.
+
+    For every chunk except the last, this trims from the front: start_s
+    is pulled forward (delayed), end_s stays fixed, since the boundary to
+    the *next* chunk's audio is accurate and shouldn't move. For the
+    last chunk there's no next chunk to line up with, and right-aligning
+    it would leave the subtitle popping up right at the very end of the
+    file with almost no time to read before playback ends -- so it's
+    left-aligned instead: start_s stays at the chunk's original start
+    (maximizing reading time), and end_s is pulled in early.
+
+    local_gaps (offsets 0..chunk_duration relative to the chunk's
+    ORIGINAL start_s, as returned by iter_gaps() on the chunk's own
+    audio) are re-based/clipped onto the new [start_s, end_s] window so
+    that split_chunk_for_subtitles -- which takes this call's returned
+    start_s/end_s as its basis -- still gets correctly-aligned gaps to
+    snap to.
+
+    Returns (adjusted_start_s, adjusted_end_s, adjusted_local_gaps). If
+    the estimate isn't below the trigger, or the chunk has no positive
+    duration, returns the inputs unchanged."""
+    duration = end_s - start_s
+    if duration <= 0:
+        return start_s, end_s, local_gaps
+
+    est_speech_s = estimate_speech_duration_s(text, speech_rate_wpm)
+    if est_speech_s >= trigger_ratio * duration:
+        return start_s, end_s, local_gaps  # close enough to the full chunk -- leave alone
+
+    assumed_speech_s = duration * _SUBTITLE_START_ADJUST_FALLBACK_RATIO
+
+    if is_last_chunk:
+        new_start_s = start_s
+        new_end_s = max(start_s, min(start_s + assumed_speech_s, end_s))
+        new_duration = new_end_s - new_start_s
+        if new_end_s >= end_s:
+            return start_s, end_s, local_gaps  # nothing actually trimmed
+        adjusted_gaps = []
+        for g in local_gaps:
+            if g.start_s >= new_duration:
+                continue  # entirely trimmed away from the end
+            adjusted_gaps.append(Gap(g.start_s, min(g.end_s, new_duration)))
+        return new_start_s, new_end_s, adjusted_gaps
+
+    new_start_s = max(start_s, min(end_s - assumed_speech_s, end_s))
+    shift = new_start_s - start_s
+    if shift <= 0:
+        return start_s, end_s, local_gaps
+
+    adjusted_gaps = []
+    for g in local_gaps:
+        if g.end_s <= shift:
+            continue  # entirely trimmed away from the front
+        adjusted_gaps.append(Gap(max(0.0, g.start_s - shift), g.end_s - shift))
+
+    return new_start_s, end_s, adjusted_gaps
 
 
 def split_chunk_for_subtitles(text: str, start_s: float, end_s: float,

@@ -16,7 +16,7 @@ from stt_tab import STTTab
 from stt_settings_tab import STTSettingsTab
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader v0.70 (2026.07.15)"
+_PROGRAMTITLE = "raron's TTS Reader v0.72 (2026.07.16)"
 
 
 class MainWindow(QMainWindow):

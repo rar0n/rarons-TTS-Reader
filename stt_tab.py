@@ -2,16 +2,13 @@
 STTTab: Speech-To-Text tab. Pick an audio file, send it to KoboldCpp's
 Whisper endpoint (/api/extra/transcribe), and show the returned text.
 
-Two modes (toggle lives on the STT Settings tab now, along with language
-code and suppress-non-speech):
-- Single-shot: whole file sent in one request. Fine for short clips, but
-  whisper.cpp only looks at ~30s per internal window, so longer files get
-  silently truncated/garbled.
-- Chunked (default): splits the file at silence boundaries into pieces
-  first (speaker-speed-preset-dependent target/range), transcribes each
-  in turn, and stitches the results back together with real timestamps --
-  required for anything over roughly 30s, and what makes SRT export
-  possible.
+Always chunked: the file is split at silence boundaries into pieces first
+(speaker-speed-preset-dependent target/range), each is transcribed in
+turn, and the results are stitched back together with real timestamps.
+whisper.cpp only looks at ~30s per internal window, so anything longer
+gets silently truncated/garbled without chunking -- there's no longer a
+single-shot toggle, since chunking is a strict improvement for any file
+length and is required for SRT export (per-chunk timestamps) anyway.
 
 On top of chunked transcription, two independent formatting passes are
 available:
@@ -34,6 +31,7 @@ mic available.
 """
 
 import os
+import re
 import time
 import wave
 from pathlib import Path
@@ -49,6 +47,7 @@ from audio_convert import to_wav_file, AudioConvertError
 from audio_chunker import (
     ChunkerConfig, Gap, chunk_audio_file, iter_gaps, wav_duration_s,
     split_chunk_for_subtitles, apply_subtitle_linger,
+    adjust_chunk_start_for_speech,
 )
 
 from ui_common import (
@@ -56,33 +55,6 @@ from ui_common import (
     COLOR_DARK_PURPLE, STANDARD_BTN_HEIGHT, btn_style, progress_style,
     print_error, fmt_duration, ElidingLabel, ZoomableTextEdit, srt_timestamp,
 )
-
-
-class TranscribeWorker(QThread):
-    """Single-shot: sends the whole file in one request. No timestamps."""
-
-    finished = Signal(str)   # transcribed text
-    failed = Signal(str)     # error message
-
-    def __init__(self, client: KoboldSTTClient, wav_bytes: bytes,
-                 langcode: str, suppress_non_speech: bool, parent=None):
-        super().__init__(parent)
-        self._client = client
-        self._wav_bytes = wav_bytes
-        self._langcode = langcode
-        self._suppress_non_speech = suppress_non_speech
-
-    def run(self):
-        try:
-            text = self._client.transcribe(
-                self._wav_bytes,
-                langcode=self._langcode,
-                suppress_non_speech=self._suppress_non_speech,
-            )
-        except STTError as e:
-            self.failed.emit(str(e))
-            return
-        self.finished.emit(text)
 
 
 class ChunkedTranscribeWorker(QThread):
@@ -175,6 +147,32 @@ def _format_sentence_breaks(text: str) -> str:
     return "".join(out)
 
 
+# Whisper's convention for non-speech events is a bracketed/parenthesized
+# tag rather than actual words -- e.g. "[music]", "[BLANK_AUDIO]",
+# "[laughter]", "(coughing)". These get stripped before a chunk's words
+# are counted for the live WPM readout, so a chunk that's mostly music or
+# noise doesn't drag the observed speaking rate down with tag "words"
+# that were never actually spoken.
+_NON_SPEECH_TAG_RE = re.compile(r"[\(\[][^\)\]]{0,60}[\)\]]")
+
+
+def _strip_non_speech_tags(text: str) -> str:
+    return _NON_SPEECH_TAG_RE.sub(" ", text)
+
+
+def _compute_chunk_wpm(text: str, duration_s: float):
+    """Observed words-per-minute for one chunk, from its actual
+    transcribed text (non-speech tags stripped) and measured audio
+    duration. Returns None if there's nothing to compute from (empty
+    chunk, tag-only chunk, or zero/negative duration)."""
+    if duration_s <= 0:
+        return None
+    words = _strip_non_speech_tags(text).split()
+    if not words:
+        return None
+    return len(words) / (duration_s / 60.0)
+
+
 class STTTab(QWidget):
     def __init__(self, settings_tab, stt_settings_tab=None, parent=None):
         super().__init__(parent)
@@ -191,13 +189,22 @@ class STTTab(QWidget):
         if self._stt_settings_tab is not None:
             self._stt_settings_tab.preset_changed.connect(self._on_preset_changed)
 
-        self._worker = None  # TranscribeWorker | ChunkedTranscribeWorker | None
+        self._worker = None  # ChunkedTranscribeWorker | None
         self._source_path: Path | None = None  # last file transcribed, for Save's default name
         self._temp_wav_path: Path | None = None  # cleaned up after each run, if used
         self._active_config: ChunkerConfig = ChunkerConfig()
         self._last_chunk_end_s: float = 0.0
         # (start_s, end_s, text, local_gaps) per chunk -- chunked mode only
         self._chunk_results: list[tuple[float, float, str, list]] = []
+
+        # Live observed-WPM stats, updated per chunk as transcription runs
+        # (see _update_wpm_stats) -- purely informational, to help tune
+        # the Speech rate (wpm) column on the STT Settings tab.
+        self._wpm_current: float | None = None
+        self._wpm_min: float | None = None
+        self._wpm_max: float | None = None
+        self._wpm_total_words: int = 0
+        self._wpm_total_duration_s: float = 0.0
 
         # Live metrics while transcribing.
         self._transcribe_start_time: float | None = None
@@ -259,6 +266,32 @@ class STTTab(QWidget):
         self.save_srt_btn.clicked.connect(self._on_save_srt_clicked)
         btn_row.addWidget(self.save_srt_btn)
 
+        self.wpm_label = QLabel("WPM: --")
+        self.wpm_label.setStyleSheet(STATUS_STYLE_STT)
+        self.wpm_label.setToolTip(
+            "Observed speaking rate, computed live from each chunk's "
+            "transcribed text and measured audio duration as transcription "
+            "runs -- bracketed non-speech tags like [music] or "
+            "[BLANK_AUDIO] are stripped before counting words. \"WPM\" is "
+            "the most recent chunk; avg is total words over total chunk "
+            "duration so far. Use this to help tune the Speech rate (wpm) "
+            "column on the STT Settings tab."
+        )
+        btn_row.addWidget(self.wpm_label)
+
+        self.add_preset_btn = QPushButton("Add to Preset Table")
+        self.add_preset_btn.setStyleSheet(btn_style(COLOR_DARK_GREEN))
+        self.add_preset_btn.setFixedHeight(STANDARD_BTN_HEIGHT)
+        self.add_preset_btn.setEnabled(False)
+        self.add_preset_btn.setToolTip(
+            "Adds a new row to the Speaker presets table on the STT "
+            "Settings tab: the pause/target/range columns come from the "
+            "chunker settings this transcription is using, and the Speech "
+            "rate (wpm) column comes from the average WPM shown here."
+        )
+        self.add_preset_btn.clicked.connect(self._on_add_preset_clicked)
+        btn_row.addWidget(self.add_preset_btn)
+
         btn_row.addStretch(1)
         outer.addLayout(btn_row)
 
@@ -309,11 +342,6 @@ class STTTab(QWidget):
             return self._stt_settings_tab.get_suppress_non_speech()
         return False
 
-    def _current_chunked_mode(self) -> bool:
-        if self._stt_settings_tab is not None:
-            return self._stt_settings_tab.get_chunked_mode()
-        return True
-
     def _current_subtitle_segmentation_enabled(self) -> bool:
         if self._stt_settings_tab is not None:
             return self._stt_settings_tab.get_subtitle_segmentation_enabled()
@@ -340,6 +368,16 @@ class STTTab(QWidget):
             return self._stt_settings_tab.get_subtitle_linger_long_pause_ms() / 1000.0
         from audio_chunker import SUBTITLE_LINGER_LONG_PAUSE_S
         return SUBTITLE_LINGER_LONG_PAUSE_S
+
+    def _current_subtitle_adjust_start_enabled(self) -> bool:
+        if self._stt_settings_tab is not None:
+            return self._stt_settings_tab.get_subtitle_adjust_start_enabled()
+        return False
+
+    def _current_subtitle_adjust_start_ratio(self) -> float:
+        if self._stt_settings_tab is not None:
+            return self._stt_settings_tab.get_subtitle_adjust_start_ratio()
+        return 0.5
 
     def _refresh_active_preset_label(self):
         if self._stt_settings_tab is not None:
@@ -467,6 +505,13 @@ class STTTab(QWidget):
         self._active_config = self._current_chunker_config()
         self.output_edit.clear()
         self.progress_bar.setValue(0)
+        self._wpm_current = None
+        self._wpm_min = None
+        self._wpm_max = None
+        self._wpm_total_words = 0
+        self._wpm_total_duration_s = 0.0
+        self._update_wpm_label()
+        self.add_preset_btn.setEnabled(False)
         langcode = self._current_langcode()
         suppress_non_speech = self._current_suppress_non_speech()
         client = self._make_client()
@@ -474,32 +519,19 @@ class STTTab(QWidget):
         self._set_busy(True)
         self._start_metrics(duration)
 
-        if self._current_chunked_mode():
-            self._worker = ChunkedTranscribeWorker(
-                client, wav_path_for_chunking, duration, self._active_config,
-                langcode, suppress_non_speech, parent=self,
-            )
-            self._worker.chunk_done.connect(self._on_chunk_done)
-            self._worker.progress.connect(self._on_progress)
-            self._worker.finished_all.connect(self._on_chunked_finished)
-            self._worker.failed.connect(self._on_transcribe_failed)
-        else:
-            try:
-                wav_bytes = wav_path_for_chunking.read_bytes()
-            except OSError as e:
-                print_error(f"Couldn't read {wav_path_for_chunking}: {e}")
-                QMessageBox.warning(self, "Couldn't read file", str(e))
-                self._set_busy(False)
-                self._stop_metrics()
-                return
-            self._worker = TranscribeWorker(client, wav_bytes, langcode, suppress_non_speech, parent=self)
-            self._worker.finished.connect(self._on_transcribe_finished)
-            self._worker.failed.connect(self._on_transcribe_failed)
+        self._worker = ChunkedTranscribeWorker(
+            client, wav_path_for_chunking, duration, self._active_config,
+            langcode, suppress_non_speech, parent=self,
+        )
+        self._worker.chunk_done.connect(self._on_chunk_done)
+        self._worker.progress.connect(self._on_progress)
+        self._worker.finished_all.connect(self._on_chunked_finished)
+        self._worker.failed.connect(self._on_transcribe_failed)
 
         self._worker.start()
 
     def _on_cancel_clicked(self):
-        if isinstance(self._worker, ChunkedTranscribeWorker):
+        if self._worker is not None:
             self._worker.request_stop()
             self._set_status("Cancelling after the current chunk finishes…")
         self.cancel_btn.setEnabled(False)
@@ -526,8 +558,56 @@ class STTTab(QWidget):
     def _on_chunk_done(self, index: int, start_s: float, end_s: float, text: str, local_gaps: list):
         self._chunk_results.append((start_s, end_s, text, local_gaps))
         self._append_to_output(index, start_s, text)
+        self._update_wpm_stats(start_s, end_s, text)
         self._last_chunk_end_s = end_s
         self._set_status(f"Chunk {index + 1} done ({start_s:.1f}s-{end_s:.1f}s)…")
+
+    def _update_wpm_stats(self, start_s: float, end_s: float, text: str):
+        wpm = _compute_chunk_wpm(text, end_s - start_s)
+        if wpm is None:
+            return  # tag-only or zero-duration chunk -- doesn't count toward the stats
+        self._wpm_current = wpm
+        self._wpm_min = wpm if self._wpm_min is None else min(self._wpm_min, wpm)
+        self._wpm_max = wpm if self._wpm_max is None else max(self._wpm_max, wpm)
+        self._wpm_total_words += len(_strip_non_speech_tags(text).split())
+        self._wpm_total_duration_s += (end_s - start_s)
+        self._update_wpm_label()
+        self.add_preset_btn.setEnabled(True)
+
+    def _update_wpm_label(self):
+        if self._wpm_current is None:
+            self.wpm_label.setText("WPM: --")
+            return
+        avg = (self._wpm_total_words / (self._wpm_total_duration_s / 60.0)
+               if self._wpm_total_duration_s > 0 else self._wpm_current)
+        self.wpm_label.setText(
+            f"WPM: {self._wpm_current:.0f} (min {self._wpm_min:.0f} / "
+            f"avg {avg:.0f} / max {self._wpm_max:.0f})"
+        )
+
+    def _on_add_preset_clicked(self):
+        if self._stt_settings_tab is None:
+            QMessageBox.information(
+                self, "No Settings tab",
+                "STT Settings tab isn't wired in -- nowhere to add the preset to.",
+            )
+            return
+        if self._wpm_total_duration_s <= 0:
+            return  # button should be disabled in this case, but just in case
+
+        avg_wpm = self._wpm_total_words / (self._wpm_total_duration_s / 60.0)
+        config = self._active_config
+        preset = {
+            "name": "New preset (from STT run)",
+            "comma_ms": config.pause_comma_ms,
+            "period_ms": config.pause_sentence_ms,
+            "paragraph_ms": config.pause_paragraph_ms,
+            "target_s": config.chunk_target_s,
+            "range_s": config.chunk_range_s,
+            "wpm": round(avg_wpm),
+        }
+        self._stt_settings_tab.add_preset_row(preset)
+        self._set_status(f"Added new preset to Speaker presets table (~{avg_wpm:.0f} wpm).")
 
     def _on_progress(self, fraction: float):
         self._last_progress_fraction = fraction
@@ -539,15 +619,6 @@ class STTTab(QWidget):
         self._set_status(f"Transcription complete ({len(self._chunk_results)} chunk(s)) in {fmt_duration(elapsed)}.")
         self._set_busy(False)
         self.save_srt_btn.setEnabled(bool(self._chunk_results))
-        self._cleanup_temp_wav()
-        self._worker = None
-
-    def _on_transcribe_finished(self, text: str):
-        elapsed = self._stop_metrics()
-        self.output_edit.setPlainText(_format_sentence_breaks(text.strip()))
-        self.progress_bar.setValue(1000)
-        self._set_status(f"Transcription complete in {fmt_duration(elapsed)}.")
-        self._set_busy(False)
         self._cleanup_temp_wav()
         self._worker = None
 
@@ -579,8 +650,26 @@ class STTTab(QWidget):
         use_segmentation = self._current_subtitle_segmentation_enabled()
         snap_to_gaps = self._current_subtitle_snap_to_gaps()
         max_chars = self._current_subtitle_max_chars()
+        adjust_start_enabled = self._current_subtitle_adjust_start_enabled()
+        adjust_start_ratio = self._current_subtitle_adjust_start_ratio()
+        speech_rate_wpm = self._active_config.speech_rate_wpm
 
-        for start_s, end_s, text, local_gaps in self._chunk_results:
+        for i, (start_s, end_s, text, local_gaps) in enumerate(self._chunk_results):
+            # Before any segmentation: if this chunk's estimated speech
+            # duration is a lot shorter than its actual audio length (a
+            # chunk starting with music/noise then speech, no pause
+            # between them), trim the subtitle so it's the estimated
+            # speech portion of the chunk -- right-aligned to the chunk's
+            # end for every chunk except the last, which is left-aligned
+            # instead (see adjust_chunk_start_for_speech's docstring).
+            # Segmentation below then splits from this adjusted span
+            # rather than the chunk's raw start_s/end_s.
+            if adjust_start_enabled:
+                is_last_chunk = (i == len(self._chunk_results) - 1)
+                start_s, end_s, local_gaps = adjust_chunk_start_for_speech(
+                    text, start_s, end_s, local_gaps, speech_rate_wpm,
+                    adjust_start_ratio, is_last_chunk=is_last_chunk,
+                )
             if use_segmentation:
                 entries.extend(split_chunk_for_subtitles(
                     text, start_s, end_s, local_gaps,
@@ -640,7 +729,7 @@ class STTTab(QWidget):
         """Called from MainWindow.closeEvent, matching narration_tab's
         pattern -- makes sure a still-running worker thread doesn't get
         torn out from under itself on app close."""
-        if isinstance(self._worker, ChunkedTranscribeWorker):
+        if self._worker is not None:
             self._worker.request_stop()
         if self._worker is not None and self._worker.isRunning():
             self._worker.wait(2000)
