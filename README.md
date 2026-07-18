@@ -22,9 +22,9 @@ Can save rendered audio and subtitles (for use in a player later).
 
 Basically
   - **Long text TTS**  - Text to Speech (Narration)
-    - Save  audio and / or srt (subtitles)
+    - Save  audio and / or subtitle (.srt)
   - **Long media STT** - Speech to Text (Transcription)
-    - Save as plain text or srt subtitles.
+    - Save as plain-text or subtitle (.srt)
 
 For TTS:
   - Long text TTS via KoboldCpp TTS (Only tested 45ish minute so far)
@@ -44,7 +44,7 @@ For TTS:
 For STT:
   - Long audio transcriptions. Also some video formats (tested 3 hour video).
   - Save as subtitle or plain-text
-    - Some rudimentary plain text formatting (newlines, basically)
+    - Some rudimentary plain-text formatting (newlines, basically)
 
 Some settings are experimental and maybe not so useful.
 
@@ -107,8 +107,7 @@ For STT
 
 ## Usage:
 
-1. Run KoboldCpp, I suggest from a terminal / CLI  folder
-    (easier to exit by ctrl-C).
+1. Run KoboldCpp, I suggest from a terminal / CLI (easier to exit by ctrl-C).
 2. In KoboldCpp, either load a previously saved config, or go to Audio tab (from the left panel vertical tabs), set:
     - "TTS model (Text-to-speech)"
     - "WavTokenizer model (Required for some models)"
@@ -273,7 +272,7 @@ that's not a sentence end (like "Dr.", "Mr.", etc).
 
 For Speech-To-Text transcriptions from audio or video files.
 
-Can be saved as both plain text, and subtitles (.srt).
+Can be saved as plain-text or subtitles (.srt).
 
 During transcription, there's also a running min/average/max WPM metric.
 Clicking the button to its right sends the average WPM to the Speaker Presets table, along with other settings in effect.
