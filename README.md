@@ -132,9 +132,7 @@ No need to use the KoboldCpp web page GUI that probably auto starts a web browse
 
 ## Notes
 
-- WIP, to be restructured, probably.
-
-(STT description not done atm, most should be self explanatory, except maybe some STT settings, but there are tool tips)
+Details, details...
 
 
 ### TTS (Narration) tab
@@ -288,7 +286,7 @@ It's only use is to calculate approximate speech duration if the "Subtitle start
 
 #### Silence detection
 
-Most important is probably Silence detection (only a simple RMS for now, and I guess that won't change).
+Most important is probably Silence detection (only a simple RMS for now, and I guess that won't change for the time being - it works reasonably well imho).
 
 - Amplitude threshold
 - Analysis window
