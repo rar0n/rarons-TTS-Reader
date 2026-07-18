@@ -22,15 +22,17 @@ Can save rendered audio and subtitles (for use in a player later).
 
 Basically
   - **Long text TTS**  - Text to Speech (Narration)
+    - Save  audio and / or srt (subtitles)
   - **Long media STT** - Speech to Text (Transcription)
-  - **Save subtitles** both for TTS and STT.
+    - Save as plain text or srt subtitles.
 
 For TTS:
-  - **Long text TTS** via KoboldCpp TTS (Only tested 45ish minute so far)
+  - Long text TTS via KoboldCpp TTS (Only tested 45ish minute so far)
   - Live highligthing (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
-  - **Save audio** as wav or mp3 (when it's finished rendering the TTS)
-  - Better TTS handling of punctuations and numbers (----, 100,000, 200,000, 3.1415 etc).
-  - Highlight margins (visible non-highlighted text around highlighted)
+  - Save audio as wav or mp3 (when it's finished rendering the TTS)
+  - Better TTS handling of punctuations and numbers (100,000, 200,000, 3.1415 etc).
+  - Highlight margins, with optional auto scroll
+    - (visible non-highlighted text around highlighted)
   - TTS seed value management (Rudimentary. Can reuse seeds)
   - Extra Pause settings (Maybe not so useful).
   - Keyboard controls in addition to GUI buttons:
@@ -40,11 +42,11 @@ For TTS:
       - ESC = Stop, return to textbox.
 
 For STT:
-  - **Long audio transcriptions** Also some video formats (tested 3 hour video).
-  - **make subtitles**
-  - Save as plain text too
+  - Long audio transcriptions. Also some video formats (tested 3 hour video).
+  - Save as subtitle or plain-text
     - Some rudimentary plain text formatting (newlines, basically)
-  - Some settings are experimental and maybe not so useful.
+
+Some settings are experimental and maybe not so useful.
 
 
 ### Vibe coded
@@ -75,9 +77,13 @@ Note: Most of the source code comments is Claude's. Some (not all) of the
 
 
 For TTS (I've so far only tried, and use):
+TTS model:
  - [Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/Qwen3-TTS-12Hz-1.7B-Base-q8_0.gguf) (Can also do voice cloning)
+ - Other TTS models should work as well.
+
+Tokenizer:
  - [qwen3-tts-tokenizer-q8_0.gguf](https://huggingface.co/koboldcpp/tts/blob/main/qwen3-tts-tokenizer-q8_0.gguf)
-Other TTS models should work as well.
+
 
 For STT
  - [whisper-small-q5_1.bin](https://huggingface.co/koboldcpp/whisper/tree/main)
