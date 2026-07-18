@@ -10,13 +10,6 @@
 - Now also with STT (Speech To Text) long-form transcription
     (TTS Reader is a bit of a misnomer now).
 
-A small Python wrapper that reads pasted text aloud through KoboldCpp's
-TTS API, with live highlighting, better handling of (some/most?)
-punctuations and numbers.
-
-Can now also do audio or video transcripts using Whisper in KoboldCpp.
-Can save rendered audio and subtitles (for use in a player later).
-
 
 ### Features
 
