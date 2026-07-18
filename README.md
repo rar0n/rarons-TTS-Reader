@@ -1,7 +1,6 @@
 <img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
 
-
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/12ee3051-d22f-4c50-9a08-7d7c2351dce3" />
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
 
 
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
@@ -11,19 +10,19 @@
 - Now also with STT (Speech To Text) long-form transcription
     (TTS Reader is a bit of a misnomer now).
 
-A small Python app that reads pasted text aloud through KoboldCpp's
+A small Python wrapper that reads pasted text aloud through KoboldCpp's
 TTS API, with live highlighting, better handling of (some/most?)
 punctuations and numbers.
 
-Can now also do audio or video transcripts via Whisper
+Can now also do audio or video transcripts using Whisper in KoboldCpp.
 Can save rendered audio and subtitles (for use in a player later).
 
 
 ### Features
 
 Basically
-  - **TTS** - Text to Speech (Narration)
-  - **STT** - Speech to Text (transcriptions)
+  - **Long text TTS**  - Text to Speech (Narration)
+  - **Long media STT** - Speech to Text (Transcription)
   - **Save subtitles** both for TTS and STT.
 
 For TTS:
@@ -45,6 +44,7 @@ For STT:
   - **make subtitles**
   - Save as plain text too
     - Some rudimentary plain text formatting (newlines, basically)
+  - Some settings are experimental and maybe not so useful.
 
 
 ### Vibe coded
@@ -130,24 +130,25 @@ For STT
 No need to use the KoboldCpp web page GUI that probably auto starts a web browser. Just exit it.
 
 
-## Controls / notes
+## Notes
 
 - WIP, to be restructured, probably.
 
-(STT description not done atm, most should be self explanatory, except maybe some STT settings, but there aretool tips)
+(STT description not done atm, most should be self explanatory, except maybe some STT settings, but there are tool tips)
 
 
-### Narration tab
+### TTS (Narration) tab
 
 Main tab for TTS
 - After a complete playthrough, if you want another version (even with the
   same voice and text), click RND to make a new random seed value before Play.
-  - AFAIK, this feature relies on an undocumented feature of KoboldCpp v1.116
-    API. No guarantee it'll work in later versions of KoboldCpp.
+- If you stop before rendering is finished, clicking Play again makes a new seed value
+- AFAIK, the "seed value" feature relies on an undocumented feature of KoboldCpp v1.116
+  API. No guarantee it'll work in later versions of KoboldCpp.
   - Still works on KoboldCpp v.1.117
   - Range seems to be from 0 to 2^31-1, or 0 to 2147483647.
 - If you happen upon a seed value you'd like to keep, click "Store seed".
-  - It will be stored in the "Seed Vault", along with voice and instructions.
+  - It will be stored in the "Seed Vault" tab, along with voice and instructions.
     - You can also make a note there, for your own reference.
 - If the "Lock" checkbox is checked, seed value can't change.
 - If deleting the voice field (or set as "Default"), KoboldCpp will just
@@ -157,7 +158,7 @@ Main tab for TTS
     afaik).
 
 
-##### Notes
+#### Notes
 
 - Save as mp3 may take a bit of time (depending on length etc.).
   But shouldn't take more than a few seconds, depending on size, system specs etc.
@@ -166,30 +167,16 @@ Main tab for TTS
   Thus you have to click "Save" twice to also save the audio. This can only be done after the audio has finished rendering.
 
 
-#### Controls
+#### Keyboard / mouse controls:
 
-| Button / Field | Action |
-|---|---|
-| Instructions | Optional instructions. NOTE: Overrides voice! |
-| Voice drop-down list | Voice list fetched from KoboldCpp |
-| ⟳ (Refresh) | Re-fetch the voice list from KoboldCpp |
-| 🎲 RND | Randomize seed |
-| Lock | Locks seed value, preventing changing it |
-| Store seed | Store seed value, voice and instructions to Seed Vault |
-| ▶ Play / Pause | Start new TTS narration (or Pause / Resume) |
-| ⏮ Rewind | Jump back one sentence (chunk) and replay |
-| ⏭ Forward | Jump forward one sentence (chunk) |
-| ⏹ Stop | Stops playback and rendering |
-| Save | Save as wav,mp3 or srt (subtitles) (when finished rendering) |
-
-##### Keyboard / mouse controls:
+In addition to buttons, you can use keyboard for some things (when main text area is focused):
 
 | Keys | Action |
 |---|---|
 | Ctrl + mouse scrollwheel | Zoom text in/out |
 | Ctrl + Enter | Play (speak) |
 
-###### While speaking
+##### While speaking
 
 | Keys | Action |
 |---|---|
@@ -199,27 +186,18 @@ Main tab for TTS
 | ESC | Stop playing |
 
 
-### Seed Vault tab
+### Seed Vault tab (for TTS)
 
 Just a simple table of stored seed values from the Narration tab.
- - Voice
- - Seed value
- - Any "instructions" text.
- - Optional notes
 
- After editing a note or instruction, click "Save Table".
- - It's stored in the same file as the settings (settings.json).
- - If you mess up and want to revert to the last saved settings, go to
-   Settings tab and reload settings (don't click "Save Table" then...).
-
-| Button | Action |
-|---|---|
-| Remove row | Deletes selected row |
-| Copy row to Narration | Copies selected row's data to Narration tab |
-| Save Table | Saves table to disk (settings file) |
+After editing a note or instruction, click "Save Table".
+- It's stored in the same file as the settings (settings.json).
+- If you mess up and want to revert to the last saved settings, go to
+  Settings tab and reload settings (don't click "Save Table" first then...).
 
 
-### Settings tab
+
+### TTS settings tab
 
 Settings are kind of experimental / tests. Some might not be that useful.
 
@@ -241,13 +219,13 @@ Narration highlight settings.
 Just a quick setting for having more text visible around the currently highlighted
 TTS chunk (Except at the beginning and end of the text).
 
-- Highlight Margin (checkbox)
-  - Enable or disable highlight margin / distance to top or bottom edge.
-- Clamp Highlight Distance
-  - Checked   : Keeps the highlight at a constant distance instead of autoscroll.
+- Highlight Margin (checkbox) (Should be named "Auto scroll with margin")
+  - When the highlight reaches the bottom minus a distance, it scrolls up to top minus the same distance.
+- Clamp Highlight Distance (Should be named "Don't auto scroll").
+  - Checked   : Keeps the highlight at a constant distance instead of autoscrolling.
   - Unchecked : Auto-scrolls the highlight to the opposite edge (top / bottom).
 - Scroll Denominator
-  - Sets the margin size as ratio (1/SD) of textbox height.
+  - Sets the distance from top / bottom of text window, as a ratio (1/SD) of textbox height.
     - Ex. SD = 4 means 1/4 of screen height. When the highlight reaches 1/4
       of the textbox height from its top or bottom edge, it will scroll the
       highlight to the other edge, with the same 1/4 distance.
@@ -256,11 +234,12 @@ TTS chunk (Except at the beginning and end of the text).
 #### Pauses (milliseconds)
 
 Extra pauses at the end of each TTS sentence chunk (depending on punctuation).
-Actually, you might want most of these to 0 (zero). Experiment.
+Actually, you might want most of these to 0 (zero). Though sometimes it seems useful to keep a few.
+Experiment!
 
 - Speech might be a bit slow with default pauses, as all pauses will
   be **additional** to pauses that the TTS engine (KoboldCpp) makes, but
-  only at each chunk's (sentence) end.
+  only at each chunk's (usually a sentence) end.
 - Mid-chunk only the TTS engine determines how it's spoken, pauses and all.
 - Unless a chunk is deemed too short to be by itself, any punctuation should
   only be at the end of a chunk sent to KoboldCpp.
@@ -284,6 +263,61 @@ Actually, you might want most of these to 0 (zero). Experiment.
 
 Comma or newline separated list of typical abbreviations ending in a period,
 that's not a sentence end (like "Dr.", "Mr.", etc).
+
+
+### STT (Transcription) tab
+
+For Speech-To-Text transcriptions from audio or video files.
+
+Can be saved as both plain text, and subtitles (.srt).
+
+During transcription, there's also a running min/average/max WPM metric.
+Clicking the button to its right sends the average WPM to the Speaker Presets table, along with other settings in effect.
+Mostly just an experimental feature, to approximately gauge the WPM.
+It's only use is to calculate approximate speech duration if the "Subtitle start adjustment" is on, to determine roughly if a chunk has less spoken words than there's time for.
+
+
+### STT Settings tab
+
+
+#### Transcription options
+
+- Language setting (I'm not sure which languages Whipper supports, other than "en" (English).
+- Suppress non-speech - whisper attempts to identify and write non-speech audio as "music", "tire screetch", etc.
+
+
+#### Silence detection
+
+Most important is probably Silence detection (only a simple RMS for now, and I guess that won't change).
+
+- Amplitude threshold
+- Analysis window
+- Minimum gap duration
+
+
+#### Subtitle segmentation
+Split long chunks into multiple SRT entries
+- Useful if used for subtitles, so the subtitles don't fill the entire screen.
+- Splits the subtitle into segments within a chunk, at approximate time points (so it won't be exact).
+
+Prioritize detected pauses new split points
+- You know, this is a bit of a mysterious setting Claude came up with, I'm not entirely sure what it does :-)
+  Apparently, it is used to find suitable split points for subtitle segmentation, if enabled, and if there are such gaps "near by".
+
+#### Subtitle lingering
+- Just a setting so a subtitle don't disappear at the moment it's spoken, if there's non-speech (silence etc) right after it.
+
+
+#### Speaker Presets
+Just a table of a few related ish settings
+- Silence durations for different punctuations (comma, period, paragraph) for plain-text formatting.
+- Target audio chunk length, with a plus / minus range.
+  - KoboldCpp and Whisper can't transcribe more than 30 seconds, so keep below this absolute limit.
+  - For subtitles, maybe a more suitable chunk size is way less. Arbitrarily I've chosen 10 seconds, give or take 5 s.
+    - It's probably a bit much, but seems to work reasonably well.
+- WPM is an approximately speech speed setting. It's only use is to calculate approximate speech duration if the "Subtitle start adjustment" above is on, to determine roughly if a chunk has less spoken words than there's time for. In which case, it's assumed the speech starts later in the auido chunk (which isn't given, and no way to tell), and it's delayed. Unless it's the last chunk, in which case it just ends earler.
+
+
 
 
 ## Known limitations
