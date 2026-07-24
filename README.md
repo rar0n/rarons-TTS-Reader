@@ -5,11 +5,6 @@
 - Now also with STT (Speech To Text) long-form transcription
     (TTS Reader is a bit of a misnomer now).
 
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
-
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
-
-
 ### Features
 
 Basically
@@ -19,6 +14,8 @@ Basically
     - Save as plain-text or subtitle (.srt)
 
 For TTS:
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
+
   - Long text TTS via KoboldCpp TTS (Only tested 45ish minute so far)
   - Live highligthing (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
   - Save audio as wav or mp3 (when it's finished rendering the TTS)
@@ -34,6 +31,8 @@ For TTS:
       - ESC = Stop, return to textbox.
 
 For STT:
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
+
   - Long audio transcriptions. Also some video formats (tested 3 hour video).
   - Save as subtitle or plain-text
     - Some rudimentary plain-text formatting (newlines, basically)
