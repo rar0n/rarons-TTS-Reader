@@ -1,14 +1,13 @@
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
-
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
-
-
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around limited context memory for KoboldCpp
     with long-form text generation and audio / video transcription.
 - Now also with STT (Speech To Text) long-form transcription
     (TTS Reader is a bit of a misnomer now).
+
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
+
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
 
 
 ### Features
@@ -278,7 +277,7 @@ It's only use is to calculate approximate speech duration if the "Subtitle start
 
 #### Transcription options
 
-- Language setting (I'm not sure which languages Whipper supports, other than "en" (English).
+- Language setting (I'm not sure which languages Whisper supports, other than "en" (English).
 - Suppress non-speech - whisper attempts to identify and write non-speech audio as "music", "tire screetch", etc.
 
 
@@ -368,7 +367,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rarons-TTS-Reader)
+Contact: Atm only here, which should be the [TTS Reader's github page](https://github.com/rar0n/rarons-TTS-Reader)
 
 
 ## Version history
