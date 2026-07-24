@@ -13,7 +13,9 @@ Basically
   - **Long media STT** - Speech to Text (Transcription)
     - Save as plain-text or subtitle (.srt)
 
+
 For TTS:
+
 <img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
 
   - Long text TTS via KoboldCpp TTS (Only tested 45ish minute so far)
@@ -30,7 +32,9 @@ For TTS:
       - Arrow left / right = Rewind / Forward
       - ESC = Stop, return to textbox.
 
+
 For STT:
+
 <img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
 
   - Long audio transcriptions. Also some video formats (tested 3 hour video).
