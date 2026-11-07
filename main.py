@@ -1,5 +1,6 @@
 """
 rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
+                    Now also with STT - Speech To Text transcription
 
 - Built to work around limited context memory for KoboldCpp TTS,
   for long single-shot TTS requests.
@@ -9,10 +10,10 @@ import sys
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
-from settings_tab import SettingsTab
-from seed_vault_tab import SeedVaultTab
-from narration_tab import NarrationTab
-from stt_tab import STTTab
+from tts_settings_tab import SettingsTab
+from tts_seed_vault_tab import SeedVaultTab
+from tts_narration_tab import NarrationTab
+from stt_transcription_tab import STTTab
 from stt_settings_tab import STTSettingsTab
 
 # Titlebar info
@@ -28,23 +29,23 @@ class MainWindow(QMainWindow):
         tabs = QTabWidget()
         self.setCentralWidget(tabs)
 
-        self.settings_tab = SettingsTab()
-        self.seed_vault_tab = SeedVaultTab()
-        self.settings_tab.settings_loaded.connect(self.seed_vault_tab.load_from_path)
+        self.tts_settings_tab = SettingsTab()
+        self.tts_seed_vault_tab = SeedVaultTab()
+        self.tts_settings_tab.settings_loaded.connect(self.tts_seed_vault_tab.load_from_path)
 
-        self.narration_tab = NarrationTab(self.settings_tab, self.seed_vault_tab)
+        self.tts_narration_tab = NarrationTab(self.tts_settings_tab, self.tts_seed_vault_tab)
         self.stt_settings_tab = STTSettingsTab()
-        self.stt_tab = STTTab(self.settings_tab, self.stt_settings_tab)
+        self.stt_transcription_tab = STTTab(self.tts_settings_tab, self.stt_settings_tab)
 
-        tabs.addTab(self.narration_tab, "TTS (Narration)")
-        tabs.addTab(self.stt_tab, "STT (Transcribing)")
-        tabs.addTab(self.seed_vault_tab, "Seed Vault")
-        tabs.addTab(self.settings_tab, "TTS Settings")
+        tabs.addTab(self.tts_narration_tab, "TTS (Narration)")
+        tabs.addTab(self.stt_transcription_tab, "STT (Transcription)")
+        tabs.addTab(self.tts_seed_vault_tab, "Seed Vault")
+        tabs.addTab(self.tts_settings_tab, "TTS Settings")
         tabs.addTab(self.stt_settings_tab, "STT Settings")
 
     def closeEvent(self, event):
-        self.narration_tab.shutdown()
-        self.stt_tab.shutdown()
+        self.tts_narration_tab.shutdown()
+        self.stt_transcription_tab.shutdown()
         super().closeEvent(event)
 
 

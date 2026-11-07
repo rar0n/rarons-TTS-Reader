@@ -41,7 +41,7 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 
-from chunker import Chunk
+from tts_chunker import Chunk
 
 # Default format the persistent stream opens with before we've seen any
 # real audio yet (Qwen3TTS via KoboldCpp outputs 24kHz mono WAV). If the

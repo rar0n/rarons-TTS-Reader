@@ -302,7 +302,7 @@ def chunk_audio_file(wav_path: Path, config: Optional[ChunkerConfig] = None) -> 
 # splitting is inherently approximate either way -- this just tries to
 # be *less* wrong by snapping to a real detected gap near the target
 # split point when one exists, rather than pure word-count proportion.
-SUBTITLE_MAX_CHARS = 100
+SUBTITLE_MAX_CHARS = 80
 
 # A candidate gap only gets used to time a split if it falls within this
 # many seconds of the proportional (word-count-based) estimate -- too far
@@ -474,7 +474,7 @@ def split_chunk_for_subtitles(text: str, start_s: float, end_s: float,
 
 
 # Default for apply_subtitle_linger, below.
-SUBTITLE_LINGER_LONG_PAUSE_S = 0.5  # gaps get this much of a linger
+SUBTITLE_LINGER_LONG_PAUSE_S = 2  # gaps get this much of a linger
 
 
 def apply_subtitle_linger(entries: List[tuple],
@@ -483,16 +483,13 @@ def apply_subtitle_linger(entries: List[tuple],
     """Extends each SRT-style (start_s, end_s, text) entry's end time to
     reduce blank/no-subtitle stretches between consecutive entries --
     without this, a subtitle disappears the instant speech ends and
-    reappears only when the next one's speech starts, which reads as
-    flickery for short pauses (a breath, a beat) that a viewer wouldn't
-    expect to blank the screen for.
+    that might be a too short duration to read reliably if it's only a
+    word or two left by themselves due to subtitle segmentation.
 
     Every gap gets a linger of up to long_pause_linger_s past the original
     end, rather than disappearing instantly; a gap shorter than that is
     bridged completely (the subtitle stays on screen right up until the
-    next one starts, no blank gap). The screen does go blank for the
-    remainder of a genuinely long pause -- a subtitle sitting on screen
-    through a multi-second silence reads as stale/wrong, not helpful.
+    next one starts, no blank gap).
 
     max_full_linger_s is accepted for backward compatibility but is no
     longer distinct from long_pause_linger_s -- both gap sizes use the

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QCheckBox, QGridLayout, QPushButton,
 )
 
-import chunker  # imported as a module (not just `from chunker import ...`) so
+import tts_chunker  # imported as a module (not just `from chunker import ...`) so
 # this tab can read/write its tunables (PAUSE_MAP, MIN_CHUNK_CHARS, ...) at
 # runtime and have chunk_text() see the changes on the very next call.
 
@@ -254,16 +254,16 @@ class SettingsTab(QWidget):
         already holds a reference to the dict still sees the update."""
         pause_map = settings.get("PAUSE_MAP", {})
         for char, ms in pause_map.items():
-            chunker.PAUSE_MAP[char] = ms
+            tts_chunker.PAUSE_MAP[char] = ms
         for name, _label, _tip in _OTHER_PAUSE_FIELDS:
             if name in settings:
-                setattr(chunker, name, settings[name])
+                setattr(tts_chunker, name, settings[name])
         if "LONG_CHUNK_WORD_LIMIT" in settings:
-            chunker.LONG_CHUNK_WORD_LIMIT = settings["LONG_CHUNK_WORD_LIMIT"]
+            tts_chunker.LONG_CHUNK_WORD_LIMIT = settings["LONG_CHUNK_WORD_LIMIT"]
         if "MIN_CHUNK_CHARS" in settings:
-            chunker.MIN_CHUNK_CHARS = settings["MIN_CHUNK_CHARS"]
+            tts_chunker.MIN_CHUNK_CHARS = settings["MIN_CHUNK_CHARS"]
         if "ABBREVIATIONS" in settings:
-            chunker.ABBREVIATIONS = set(settings["ABBREVIATIONS"])
+            tts_chunker.ABBREVIATIONS = set(settings["ABBREVIATIONS"])
 
     def _populate_fields(self, settings: dict):
         """The inverse of _gather_settings -- fills the widgets from a dict.
@@ -305,16 +305,16 @@ class SettingsTab(QWidget):
         settings = {
             "KOBOLDCPP_URL": "http://127.0.0.1:5001",
             "MODEL": "kcpp",
-            "PAUSE_MAP": dict(chunker.PAUSE_MAP),
-            "LONG_CHUNK_WORD_LIMIT": chunker.LONG_CHUNK_WORD_LIMIT,
-            "MIN_CHUNK_CHARS": chunker.MIN_CHUNK_CHARS,
-            "ABBREVIATIONS": sorted(chunker.ABBREVIATIONS),
+            "PAUSE_MAP": dict(tts_chunker.PAUSE_MAP),
+            "LONG_CHUNK_WORD_LIMIT": tts_chunker.LONG_CHUNK_WORD_LIMIT,
+            "MIN_CHUNK_CHARS": tts_chunker.MIN_CHUNK_CHARS,
+            "ABBREVIATIONS": sorted(tts_chunker.ABBREVIATIONS),
             "HIGHLIGHT_MARGIN_ENABLED": False,
             "SCROLL_DENOMINATOR": 4,
             "CLAMP_HIGHLIGHT_DISTANCE": False,
         }
         for name, _label, _tip in _OTHER_PAUSE_FIELDS:
-            settings[name] = getattr(chunker, name)
+            settings[name] = getattr(tts_chunker, name)
         self._populate_fields(settings)
 
     def _on_field_changed(self, *_args):

@@ -7,7 +7,7 @@ pausing playback doesn't pause synthesis (it just gets further ahead).
 
 from PySide6.QtCore import QThread, Signal
 
-from chunker import Chunk
+from tts_chunker import Chunk
 from tts_client import KoboldTTSClient, TTSError
 
 

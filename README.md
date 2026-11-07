@@ -1,3 +1,8 @@
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
+
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
+
+
 # rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
 
 - Built to work around limited context memory for KoboldCpp
@@ -5,19 +10,17 @@
 - Now also with STT (Speech To Text) long-form transcription
     (TTS Reader is a bit of a misnomer now).
 
+
 ### Features
 
 Basically
+
   - **Long text TTS**  - Text to Speech (Narration)
     - Save  audio and / or subtitle (.srt)
   - **Long media STT** - Speech to Text (Transcription)
     - Save as plain-text or subtitle (.srt)
 
-
 For TTS:
-
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/095cc778-a4c8-4ba6-a00b-dcce3db714cf" />
-
   - Long text TTS via KoboldCpp TTS (Only tested 45ish minute so far)
   - Live highligthing (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
   - Save audio as wav or mp3 (when it's finished rendering the TTS)
@@ -32,11 +35,7 @@ For TTS:
       - Arrow left / right = Rewind / Forward
       - ESC = Stop, return to textbox.
 
-
 For STT:
-
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
-
   - Long audio transcriptions. Also some video formats (tested 3 hour video).
   - Save as subtitle or plain-text
     - Some rudimentary plain-text formatting (newlines, basically)
@@ -108,11 +107,9 @@ For STT
     - "WavTokenizer model (Required for some models)"
     - "TTS Voice Dir" (only if you have custom voices, set folder/directory here)
     - Might also want to tick "Use GPU" if you have a suitable one.
-3. (You may not need to) In KoboldCpp: Settings -> Media -> Text To Speech, select
-      "OpenAI-Compat. API Server".
-
-    (For simplicity later, save a KoboldCpp config. Reload on next use).
-
+3. In KoboldCpp: Settings -> Media -> Text To Speech, select "OpenAI-Compat. API Server".
+    - (You may not need to, it seems to work regardless)
+    - For simplicity later, save a KoboldCpp config. Reload on next use.
 4. Launch (KoboldCpp)
 5. Run TTS Reader by starting `python3 main.py` from its folder, in Terminal:
     Activate the venv first:
@@ -280,7 +277,7 @@ It's only use is to calculate approximate speech duration if the "Subtitle start
 
 #### Transcription options
 
-- Language setting (I'm not sure which languages Whisper supports, other than "en" (English).
+- Language setting (I'm not sure which languages Whisper supports, other than "en" (English). Appaarently there's a few.
 - Suppress non-speech - whisper attempts to identify and write non-speech audio as "music", "tire screetch", etc.
 
 
@@ -370,7 +367,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Contact: Atm only here, which should be the [TTS Reader's github page](https://github.com/rar0n/rarons-TTS-Reader)
+Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rarons-TTS-Reader)
 
 
 ## Version history

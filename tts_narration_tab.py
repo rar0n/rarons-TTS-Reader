@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QCheckBox, QSizePolicy, QProgressBar,
 )
 
-from chunker import chunk_text, Chunk
+from tts_chunker import chunk_text, Chunk
 from tts_client import KoboldTTSClient, TTSError
 from synth_worker import SynthWorker
 from tts_audio_engine import TTSAudioEngine, PlaybackState
