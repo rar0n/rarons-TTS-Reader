@@ -32,6 +32,22 @@ class _NumericTableWidgetItem(QTableWidgetItem):
             return super().__lt__(other)
 
 
+# Default widths of the first three columns as a fraction of the table's
+# visible width (the last column, Notes, just takes whatever is left).
+_DEFAULT_COLUMN_FRACTIONS = [0.20, 0.15, 0.20]
+
+
+class _VaultTable(QTableWidget):
+    """QTableWidget that tells its owner whenever its width changes, so
+    the owner can rescale the columns to keep their relative proportions."""
+
+    resized = Signal()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.resized.emit()
+
+
 class SeedVaultTab(QWidget):
     """A little table of remembered (voice, seed, instruction, notes) rows.
     Rows get added from the Narration tab's "Store seed" button; this tab
@@ -42,20 +58,29 @@ class SeedVaultTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._column_fractions = list(_DEFAULT_COLUMN_FRACTIONS)
+        self._applying_widths = False
         self._build_ui()
         self._try_autoload()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        self.table = QTableWidget(0, 4)
+        self.table = _VaultTable(0, 4)
         self.table.setHorizontalHeaderLabels(["Voice", "Seed", "Instruction", "Notes"])
         self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setColumnWidth(0, 160)
-        self.table.setColumnWidth(1, 120)
-        self.table.setColumnWidth(2, 160)
+        # Column widths are kept as fractions of the table's width (see
+        # _apply_column_widths), so they scale with the window and can be
+        # saved/restored independent of the window size.
+        self.table.resized.connect(self._apply_column_widths)
+        self.table.horizontalHeader().sectionResized.connect(self._on_section_resized)
+        self._apply_column_widths()
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        # Double-clicking a Voice or Seed cell (not editable) sends the row
+        # to the Narration tab; double-clicking Instruction/Notes still
+        # edits them, as usual.
+        self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
         self.table.setSortingEnabled(True)
         self.table.horizontalHeader().setSortIndicatorShown(True)
         layout.addWidget(self.table)
@@ -120,10 +145,39 @@ class SeedVaultTab(QWidget):
             rows.append({"voice": voice, "seed": seed, "instruction": instruction, "notes": notes})
         return rows
 
-    def _populate_rows(self, rows: list):
+    def _populate_rows(self, rows: list, sort_column: int = 0, sort_order: int = 0):
+        """Replaces the table's contents, then sorts by the given
+        column/order (Qt.SortOrder value: 0 ascending, 1 descending)."""
+        header = self.table.horizontalHeader()
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(0)
         for entry in rows:
             self.add_row(entry.get("voice", ""), entry.get("seed", ""), entry.get("instruction", ""), entry.get("notes", ""))
+        header.setSortIndicator(sort_column, Qt.SortOrder(sort_order))
+        # Turning sorting back on sorts by the header's current indicator.
+        self.table.setSortingEnabled(True)
+
+    # ---- column widths (stored as fractions of the table width) -----------
+
+    def _apply_column_widths(self):
+        width = self.table.viewport().width()
+        if width <= 0:
+            return
+        self._applying_widths = True
+        try:
+            for col, fraction in enumerate(self._column_fractions):
+                self.table.setColumnWidth(col, max(30, int(round(fraction * width))))
+        finally:
+            self._applying_widths = False
+
+    def _on_section_resized(self, col: int, _old: int, new: int):
+        """Only user drags matter here -- programmatic resizes from
+        _apply_column_widths, and the stretched last column, are ignored."""
+        if self._applying_widths or col >= len(self._column_fractions):
+            return
+        width = self.table.viewport().width()
+        if width > 0:
+            self._column_fractions[col] = new / width
 
     def _on_remove_row_clicked(self):
         row = self.table.currentRow()
@@ -137,6 +191,14 @@ class SeedVaultTab(QWidget):
         if row < 0:
             QMessageBox.information(self, "No selection", "Select a row first.")
             return
+        self._copy_row_to_reader(row)
+
+    def _on_cell_double_clicked(self, row: int, col: int):
+        if col in (0, 1):
+            self._copy_row_to_reader(row)
+
+    def _copy_row_to_reader(self, row: int):
+        """Shared by the "Copy to Narration" button and row double-click."""
         voice = self.table.item(row, 0).text() if self.table.item(row, 0) else ""
         seed = self.table.item(row, 1).text() if self.table.item(row, 1) else ""
         instruction = self.table.item(row, 2).text() if self.table.item(row, 2) else ""
@@ -154,12 +216,56 @@ class SeedVaultTab(QWidget):
         reflecting the default settings.json from startup."""
         data = load_json_dict(path)
         rows = data.get("SEED_VAULT", [])
+        self._load_column_fractions(data.get("SEED_VAULT_COLUMNS"))
+        sort = data.get("SEED_VAULT_SORT")
+        sort_column, sort_order = 0, 0
+        if isinstance(sort, dict):
+            try:
+                sort_column = int(sort.get("column", 0))
+                sort_order = int(sort.get("order", 0))
+            except (TypeError, ValueError):
+                sort_column, sort_order = 0, 0
+            if not 0 <= sort_column < self.table.columnCount() or sort_order not in (0, 1):
+                sort_column, sort_order = 0, 0
         if rows:
-            self._populate_rows(rows)
+            self._populate_rows(rows, sort_column, sort_order)
             self.status_label.setText(f"Loaded {len(rows)} seed(s) from {path}")
         elif not quiet_if_empty:
             self.table.setRowCount(0)
             self.status_label.setText(f"No seeds found in {path}")
+
+    def _load_column_fractions(self, fractions):
+        """Applies a saved list of column width fractions, ignoring
+        anything that isn't a sane list of numbers."""
+        n = len(_DEFAULT_COLUMN_FRACTIONS)
+        if isinstance(fractions, list) and len(fractions) == n:
+            try:
+                parsed = [float(f) for f in fractions]
+            except (TypeError, ValueError):
+                return
+            if all(0.02 <= f <= 0.9 for f in parsed):
+                self._column_fractions = parsed
+                self._apply_column_widths()
+
+    def _layout_settings(self) -> dict:
+        header = self.table.horizontalHeader()
+        return {
+            "SEED_VAULT_SORT": {
+                "column": header.sortIndicatorSection(),
+                "order": int(header.sortIndicatorOrder().value),
+            },
+            "SEED_VAULT_COLUMNS": [round(f, 4) for f in self._column_fractions],
+        }
+
+    def save_layout(self):
+        """Saves just the sort order and column widths (not the rows),
+        so these stick between runs even without pressing "Save Table"
+        -- the rows themselves stay manual-save so a bad edit can still
+        be undone by reloading."""
+        try:
+            save_json_merged(DEFAULT_SETTINGS_PATH, self._layout_settings())
+        except OSError:
+            pass
 
     def save_to_disk(self) -> bool:
         """Overwrites settings.json's SEED_VAULT entry with the table's
@@ -168,7 +274,7 @@ class SeedVaultTab(QWidget):
         actually gets persisted; adding a row via "Store seed" on the
         Narration tab only updates the table in memory."""
         try:
-            save_json_merged(DEFAULT_SETTINGS_PATH, {"SEED_VAULT": self._gather_rows()})
+            save_json_merged(DEFAULT_SETTINGS_PATH, {"SEED_VAULT": self._gather_rows(), **self._layout_settings()})
             return True
         except OSError as e:
             QMessageBox.warning(self, "Couldn't save seed vault", str(e))

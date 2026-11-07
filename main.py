@@ -46,6 +46,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.tts_narration_tab.shutdown()
         self.stt_transcription_tab.shutdown()
+        self.tts_seed_vault_tab.save_layout()
         super().closeEvent(event)
 
 

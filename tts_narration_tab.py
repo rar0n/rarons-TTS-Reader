@@ -8,9 +8,6 @@ has to deal with top-level window/tab plumbing.
 import time
 import random
 
-import numpy as np
-import soundfile as sf
-
 from PySide6.QtCore import QObject, Signal, Qt, QThread, QTimer
 from PySide6.QtGui import QTextCursor, QColor, QIntValidator, QFontMetrics
 from PySide6.QtWidgets import (
@@ -22,11 +19,12 @@ from PySide6.QtWidgets import (
 from tts_chunker import chunk_text, Chunk
 from tts_client import KoboldTTSClient, TTSError
 from synth_worker import SynthWorker
+from save_worker import SaveWorker
 from tts_audio_engine import TTSAudioEngine, PlaybackState
 from ui_common import (
     STATUS_STYLE_NARRATION, STATUS_STYLE_ERROR,
     COLOR_DARK_BLUE, COLOR_DARK_GREEN, COLOR_DARK_RED, COLOR_DARK_AMBER,
-    COLOR_DISABLED_BLUE, COLOR_DISABLED_GREEN,
+    COLOR_DISABLED_BLUE, COLOR_DISABLED_GREEN, COLOR_DISABLED_RED,
     btn_style, progress_style, fmt_duration, fmt_bytes, with_extension,
     srt_timestamp, print_error, ElidingLabel, ZoomableTextEdit,
 )
@@ -44,6 +42,8 @@ _PROGRESS_STYLE_NARRATION = progress_style(COLOR_DISABLED_BLUE, COLOR_DARK_BLUE)
 _PROGRESS_STYLE_NARRATION_FULL = progress_style(COLOR_DARK_BLUE, COLOR_DARK_BLUE)
 _PROGRESS_STYLE_RENDER = progress_style(COLOR_DISABLED_GREEN, COLOR_DARK_GREEN)
 _PROGRESS_STYLE_RENDER_FULL = progress_style(COLOR_DARK_GREEN, COLOR_DARK_GREEN)
+# The render bar is re-used (in red) to show progress while saving audio.
+_PROGRESS_STYLE_SAVE = progress_style(COLOR_DISABLED_RED, COLOR_DARK_RED)
 
 # Used to project remaining time before any chunk has actually been
 # synthesized yet (roughly 150 words/minute of speech).
@@ -108,6 +108,16 @@ class NarrationTab(QWidget):
         self._synth_start_time: float | None = None
         self._synth_done_count = 0
         self._synth_total_elapsed: float | None = None
+        # When the first chunk finished. Its render time also includes
+        # KoboldCpp's start-up/model-warmup, so the "time left" estimate
+        # is based on the chunks after it only.
+        self._synth_first_done_time: float | None = None
+
+        # Background audio save (WAV/MP3), if one is running, plus the
+        # subtitles to write next to it once it succeeds.
+        self._save_worker: SaveWorker | None = None
+        self._save_ready = False
+        self._pending_srt: tuple[str, str] | None = None  # (path, text)
 
         # Trailing stats (words/time/render/memory) from the last status
         # update, kept around so "Finished" and error states can still
@@ -391,7 +401,8 @@ class NarrationTab(QWidget):
         a muted grey-green while there isn't audio to save yet) is baked
         into its stylesheet's :disabled state, so this only ever needs to
         flip setEnabled()."""
-        self.save_btn.setEnabled(ready)
+        self._save_ready = ready
+        self.save_btn.setEnabled(ready and self._save_worker is None)
 
     def _set_progress(self, bar: QProgressBar, fraction: float, muted_style: str, full_style: str):
         """Sets `bar`'s value from a 0-1 `fraction`, swapping to
@@ -532,6 +543,10 @@ class NarrationTab(QWidget):
         if not text.strip():
             QMessageBox.information(self, "No text", "Paste some text first.")
             return
+        if self._save_worker is not None:
+            # A fresh render would reuse the progress bar the save is using.
+            self.status_label.setText("Saving audio… wait for it to finish before starting a new render")
+            return
 
         self._buffered_playable = False
         self._render_was_interrupted = False
@@ -554,6 +569,7 @@ class NarrationTab(QWidget):
         self._synth_start_time = time.monotonic()
         self._synth_done_count = 0
         self._synth_total_elapsed = None
+        self._synth_first_done_time = None
         self._last_stats_line = ""
 
         voice = self.voice_combo.currentText().strip() or "default"
@@ -692,6 +708,8 @@ class NarrationTab(QWidget):
 
     def _on_chunk_synthesized(self, idx: int, wav_bytes: bytes):
         self._synth_done_count += 1
+        if self._synth_first_done_time is None:
+            self._synth_first_done_time = time.monotonic()
         total = len(self.chunks)
         if total:
             self._set_progress(self.render_progress, self._synth_done_count / total,
@@ -772,9 +790,11 @@ class NarrationTab(QWidget):
             if self._synth_total_elapsed is not None:
                 return f"Rendering done in {fmt_duration(self._synth_total_elapsed)}"
             return "Rendering done!"
-        if self._synth_start_time is not None and self._synth_done_count > 0:
-            elapsed = time.monotonic() - self._synth_start_time
-            rate = elapsed / self._synth_done_count  # seconds per chunk
+        # The first chunk is left out of the rate: its time includes
+        # KoboldCpp's start-up, so an estimate needs at least two chunks.
+        if self._synth_first_done_time is not None and self._synth_done_count > 1:
+            elapsed = time.monotonic() - self._synth_first_done_time
+            rate = elapsed / (self._synth_done_count - 1)  # seconds per chunk
             remaining_chunks = max(0, total - self._synth_done_count)
             render_remaining = rate * remaining_chunks
             return f"Rendering: ~{fmt_duration(render_remaining)} left"
@@ -890,9 +910,12 @@ class NarrationTab(QWidget):
             )
             return
 
+        # MP3 is listed first and preselected as the default format.
+        mp3_filter = "MP3 Audio (*.mp3)"
         path, selected_filter = QFileDialog.getSaveFileName(
-            self, "Save", "reading.wav",
-            "WAV Audio (*.wav);;MP3 Audio (*.mp3);;SubRip Subtitles (*.srt)",
+            self, "Save", "reading.mp3",
+            f"{mp3_filter};;WAV Audio (*.wav);;SubRip Subtitles (*.srt)",
+            mp3_filter,
         )
         if not path:
             return
@@ -916,29 +939,82 @@ class NarrationTab(QWidget):
         data, samplerate = result
 
         want_mp3 = "mp3" in selected_filter.lower()
+        if want_mp3:
+            try:
+                import lameenc  # noqa: F401
+            except ImportError:
+                want_mp3 = False
+                QMessageBox.information(
+                    self, "MP3 support not installed",
+                    "Saving as MP3 needs the 'lameenc' package "
+                    "(pip install lameenc). Saving as WAV instead.",
+                )
         path = with_extension(path, ".mp3" if want_mp3 else ".wav")
 
-        if want_mp3:
-            self._save_as_mp3(data, samplerate, path)
-        else:
-            sf.write(path, data, samplerate)
-            self.status_label.setText(f"Saved {path}")
+        # Optionally write the subtitles next to the audio once it's saved.
+        self._pending_srt = None
+        if self.settings_tab.auto_save_subtitles_checkbox.isChecked():
+            srt_text = self._build_srt_text()
+            if srt_text is not None:
+                self._pending_srt = (with_extension(path, ".srt"), srt_text)
 
-    def _save_subtitles(self, path: str):
-        """Writes one SRT cue per chunk. Timings come from the same
-        per-chunk durations (plus each chunk's configured pause) that
-        the narration status line accumulates during playback -- here
-        just summed from the very start rather than from wherever
-        playback currently sits, since accurate timing needs every
-        chunk's *actual* rendered duration, not the word-count estimate
-        used before rendering finishes."""
+        self._start_save(data, samplerate, path, want_mp3)
+
+    # ---- background audio save ------------------------------------------------
+
+    def _start_save(self, data, samplerate: int, path: str, as_mp3: bool):
+        """Runs the file write on a SaveWorker, showing its progress on the
+        render bar re-colored red (it goes back to green when done)."""
+        self._set_progress(self.render_progress, 0.0, _PROGRESS_STYLE_SAVE, _PROGRESS_STYLE_SAVE)
+        self.status_label.setText(f"Saving {path}…")
+        self._save_worker = SaveWorker(data, samplerate, path, as_mp3)
+        self._save_worker.progress.connect(self._on_save_progress)
+        self._save_worker.saved.connect(self._on_save_finished)
+        self._save_worker.failed.connect(self._on_save_failed)
+        self._save_worker.finished.connect(self._on_save_worker_done)
+        self._set_save_audio_ready(self._save_ready)  # disables the button while saving
+        self._save_worker.start()
+
+    def _on_save_progress(self, fraction: float):
+        self._set_progress(self.render_progress, fraction, _PROGRESS_STYLE_SAVE, _PROGRESS_STYLE_SAVE)
+
+    def _on_save_finished(self, path: str):
+        message = f"Saved {path}"
+        if self._pending_srt is not None:
+            srt_path, srt_text = self._pending_srt
+            try:
+                with open(srt_path, "w", encoding="utf-8") as f:
+                    f.write(srt_text)
+                message += f" and {srt_path}"
+            except OSError as e:
+                self._pending_srt = None
+                self._show_error_status(f"Saved {path}, but couldn't write subtitles: {e}")
+                return
+        self._pending_srt = None
+        self.status_label.setText(message)
+
+    def _on_save_failed(self, message: str):
+        self._pending_srt = None
+        self._show_error_status(f"Couldn't save audio: {message}")
+
+    def _on_save_worker_done(self):
+        """Runs whether the save succeeded, failed or was cancelled."""
+        self._save_worker = None
+        # Back to the (complete) green render bar and an enabled Save button.
+        self._set_progress(self.render_progress, 1.0, _PROGRESS_STYLE_RENDER, _PROGRESS_STYLE_RENDER_FULL)
+        self._set_save_audio_ready(self._save_ready)
+
+    def _build_srt_text(self) -> str | None:
+        """One SRT cue per chunk. Timings come from the same per-chunk
+        durations (plus each chunk's configured pause) that the narration
+        status line accumulates during playback -- here just summed from
+        the very start rather than from wherever playback currently sits,
+        since accurate timing needs every chunk's *actual* rendered
+        duration, not the word-count estimate used before rendering
+        finishes. Returns None if any chunk hasn't finished synthesizing."""
         _, _, _, durations = self.engine.get_progress_snapshot()
         if not durations or any(d is None for d in durations):
-            QMessageBox.warning(
-                self, "Not ready",
-                "Not all chunks have finished synthesizing yet (or one of them errored out).",
-            )
-            return
+            return None
 
         lines = []
         start = 0.0
@@ -949,39 +1025,18 @@ class NarrationTab(QWidget):
             lines.append(chunk.text.strip())
             lines.append("")
             start = end + chunk.pause_ms / 1000.0
+        return "\n".join(lines)
 
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-        self.status_label.setText(f"Saved {path}")
-
-    def _save_as_mp3(self, data: np.ndarray, samplerate: int, path: str):
-        try:
-            import lameenc
-        except ImportError:
-            wav_path = with_extension(path, ".wav")
-            sf.write(wav_path, data, samplerate)
-            QMessageBox.information(
-                self, "MP3 support not installed",
-                "Saving as MP3 needs the 'lameenc' package "
-                "(pip install lameenc). Saved as WAV instead:\n" + wav_path,
+    def _save_subtitles(self, path: str):
+        srt_text = self._build_srt_text()
+        if srt_text is None:
+            QMessageBox.warning(
+                self, "Not ready",
+                "Not all chunks have finished synthesizing yet (or one of them errored out).",
             )
-            self.status_label.setText(f"Saved {wav_path} (mp3 support not installed)")
             return
-
-        pcm = np.clip(data, -1.0, 1.0)
-        pcm16 = (pcm * 32767.0).astype(np.int16)
-        channels = pcm16.shape[1] if pcm16.ndim > 1 else 1
-
-        encoder = lameenc.Encoder()
-        encoder.set_bit_rate(128)
-        encoder.set_in_sample_rate(samplerate)
-        encoder.set_channels(channels)
-        encoder.set_quality(2)  # 2 = high quality (slower); 7 = fastest
-        mp3_bytes = encoder.encode(pcm16.tobytes())
-        mp3_bytes += encoder.flush()
-
-        with open(path, "wb") as f:
-            f.write(mp3_bytes)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(srt_text)
         self.status_label.setText(f"Saved {path}")
 
     # ---- highlighting -------------------------------------------------------
@@ -1086,6 +1141,9 @@ class NarrationTab(QWidget):
         """Called from MainWindow.closeEvent to cleanly tear down the
         audio engine and any in-flight synthesis worker."""
         self.engine.shutdown()
+        if self._save_worker is not None:
+            self._save_worker.cancel()
+            self._save_worker.wait(3000)
         if self.synth_worker is not None:
             self.synth_worker.stop()
             self.synth_worker.wait(1000)

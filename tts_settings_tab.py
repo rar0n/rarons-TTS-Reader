@@ -103,13 +103,23 @@ class SettingsTab(QWidget):
 
         content = QWidget()
         scroll.setWidget(content)
-        # 2x2: Scrolling (top-left) / Chunk sizing (top-right) over
-        # Pauses (bottom-left) / Abbreviations (bottom-right). Row 2 gets
-        # all the stretch so the four groups stay pinned to the top of
-        # the scroll area instead of spreading out to fill it.
+        # Row 0: general options (full width). Then 2x2: Scrolling
+        # (top-left) / Chunk sizing (top-right) over Pauses (bottom-left)
+        # / Abbreviations (bottom-right). Row 3 gets all the stretch so
+        # the groups stay pinned to the top of the scroll area instead of
+        # spreading out to fill it.
         layout = QGridLayout(content)
         layout.setColumnStretch(0, 1)
         layout.setColumnStretch(1, 1)
+
+        # -- Saving --
+        self.auto_save_subtitles_checkbox = QCheckBox("Auto-save subtitles (.srt) when saving audio")
+        self.auto_save_subtitles_checkbox.setToolTip(
+            "When saving TTS audio (WAV or MP3), also write the subtitles next to it,\n"
+            "using the same filename with a .srt extension (overwrites an existing file)."
+        )
+        self.auto_save_subtitles_checkbox.stateChanged.connect(self._on_field_changed)
+        layout.addWidget(self.auto_save_subtitles_checkbox, 0, 0, 1, 2, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Pauses --
         pause_group = QGroupBox("Pauses (milliseconds)")
@@ -130,7 +140,7 @@ class SettingsTab(QWidget):
             spin.valueChanged.connect(self._on_field_changed)
             self.other_spinboxes[name] = spin
             pause_form.addRow(label, spin)
-        layout.addWidget(pause_group, 1, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
+        layout.addWidget(pause_group, 2, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Chunking limits --
         chunk_group = QGroupBox("Chunk sizing")
@@ -151,7 +161,7 @@ class SettingsTab(QWidget):
         )
         self.min_chars_spin.valueChanged.connect(self._on_field_changed)
         chunk_form.addRow("Min chunk chars:", self.min_chars_spin)
-        layout.addWidget(chunk_group, 0, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
+        layout.addWidget(chunk_group, 1, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Abbreviations --
         abbrev_group = QGroupBox("Abbreviations (not treated as sentence-enders)")
@@ -161,7 +171,7 @@ class SettingsTab(QWidget):
         self.abbrev_edit.setFixedHeight(295)
         self.abbrev_edit.textChanged.connect(self._on_field_changed)
         abbrev_layout.addWidget(self.abbrev_edit)
-        layout.addWidget(abbrev_group, 1, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
+        layout.addWidget(abbrev_group, 2, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Scrolling --
         scroll_group = QGroupBox("Scrolling")
@@ -194,9 +204,9 @@ class SettingsTab(QWidget):
 
         self.highlight_margin_checkbox.toggled.connect(self._sync_highlight_margin_dependents_enabled)
         self._sync_highlight_margin_dependents_enabled(self.highlight_margin_checkbox.isChecked())
-        layout.addWidget(scroll_group, 0, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
+        layout.addWidget(scroll_group, 1, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
 
-        layout.setRowStretch(2, 1)
+        layout.setRowStretch(3, 1)
 
         # -- Save / load --
         btn_row = QHBoxLayout()
@@ -239,6 +249,7 @@ class SettingsTab(QWidget):
             "HIGHLIGHT_MARGIN_ENABLED": self.highlight_margin_checkbox.isChecked(),
             "SCROLL_DENOMINATOR": self.scroll_denominator_spin.value(),
             "CLAMP_HIGHLIGHT_DISTANCE": self.clamp_highlight_checkbox.isChecked(),
+            "AUTO_SAVE_SUBTITLES": self.auto_save_subtitles_checkbox.isChecked(),
         }
 
     @staticmethod
@@ -292,6 +303,8 @@ class SettingsTab(QWidget):
             self.scroll_denominator_spin.setValue(int(settings["SCROLL_DENOMINATOR"]))
         if "CLAMP_HIGHLIGHT_DISTANCE" in settings:
             self.clamp_highlight_checkbox.setChecked(bool(settings["CLAMP_HIGHLIGHT_DISTANCE"]))
+        if "AUTO_SAVE_SUBTITLES" in settings:
+            self.auto_save_subtitles_checkbox.setChecked(bool(settings["AUTO_SAVE_SUBTITLES"]))
         self._sync_highlight_margin_dependents_enabled(self.highlight_margin_checkbox.isChecked())
         self._building = False
 
@@ -312,6 +325,7 @@ class SettingsTab(QWidget):
             "HIGHLIGHT_MARGIN_ENABLED": False,
             "SCROLL_DENOMINATOR": 4,
             "CLAMP_HIGHLIGHT_DISTANCE": False,
+            "AUTO_SAVE_SUBTITLES": False,
         }
         for name, _label, _tip in _OTHER_PAUSE_FIELDS:
             settings[name] = getattr(tts_chunker, name)
