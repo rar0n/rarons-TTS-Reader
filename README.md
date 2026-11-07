@@ -88,15 +88,54 @@ For STT
 
 ## Install
 
-1. Save/extract TTS Reader into a folder, `cd to that folder` or just
-   right-click the folder and select "Open in Terminal" (Linux).
+Requires Python 3.10 or newer. For STT of anything other than WAV files
+(mp3, mp4, etc.) you also need [ffmpeg](https://ffmpeg.org/) installed and on your PATH.
+
+### Linux
+
+1. Save/extract TTS Reader into a folder, `cd` to that folder or just
+   right-click the folder and select "Open in Terminal".
 2. Install dependencies into a venv (virtual environment):
    ```bash
    python3 -m venv venv
    source venv/bin/activate
    pip install -r requirements.txt
    ```
-   (On Linux you may also need the PortAudio runtime: `sudo apt install libportaudio2`)
+   (You may also need the PortAudio runtime: `sudo apt install libportaudio2`.
+   ffmpeg: `sudo apt install ffmpeg`)
+
+### Windows
+
+1. Install [Python](https://www.python.org/downloads/windows/) if you haven't.
+   In the installer, tick **"Add python.exe to PATH"**.
+2. Save/extract TTS Reader into a folder. In File Explorer, open the folder,
+   type `cmd` (or `powershell`) in the address bar and press Enter, to open a
+   terminal there.
+3. Create the venv and install dependencies. The venv is created the same way
+   in both shells, only activating it differs:
+
+   **Command Prompt:**
+   ```bat
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+   **PowerShell:**
+   ```powershell
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   ```
+   (If PowerShell refuses to run the activate script with an error about
+   execution policies, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+   once, or just use Command Prompt.)
+
+   If `python` isn't found, try `py -m venv venv` instead.
+4. PortAudio is bundled with the `sounddevice` package on Windows, nothing extra to install.
+   ffmpeg (for STT): e.g. `winget install Gyan.FFmpeg`, then restart the terminal.
+
+(The venv prompt shows `(venv)` when it's active. Activate it again in each new terminal.)
 
 
 ## Usage:
@@ -111,11 +150,23 @@ For STT
     - (You may not need to, it seems to work regardless)
     - For simplicity later, save a KoboldCpp config. Reload on next use.
 4. Launch (KoboldCpp)
-5. Run TTS Reader by starting `python3 main.py` from its folder, in Terminal:
-    Activate the venv first:
+5. Run TTS Reader by starting `main.py` from its folder, in a terminal.
+    Activate the venv first.
+
+    Linux:
     ```bash
     source venv/bin/activate
     python3 main.py
+    ```
+    Windows (Command Prompt):
+    ```bat
+    venv\Scripts\activate
+    python main.py
+    ```
+    Windows (PowerShell):
+    ```powershell
+    .\venv\Scripts\Activate.ps1
+    python main.py
     ```
 6. Paste text (or drag'n'drop a text file - other files might have odd
    formatting), check the KoboldCpp URL/voice fields, hit **▶ Play**
@@ -155,11 +206,13 @@ Main tab for TTS
 
 #### Notes
 
-- Save as mp3 may take a bit of time (depending on length etc.).
-  But shouldn't take more than a few seconds, depending on size, system specs etc.
+- Save defaults to mp3. Saving runs in the background with a red progress bar
+  (the green rendering bar, recolored while saving).
 
 - Saving a subtitle requires clicking the Save button, and selecting "SubRip subtitles" as file type (.srt).
-  Thus you have to click "Save" twice to also save the audio. This can only be done after the audio has finished rendering.
+  This can only be done after the audio has finished rendering.
+  - To save the subtitles automatically along with the audio (same filename, .srt),
+    tick "Auto-save subtitles" in the TTS Settings tab.
 
 
 #### Keyboard / mouse controls:
@@ -184,6 +237,10 @@ In addition to buttons, you can use keyboard for some things (when main text are
 ### Seed Vault tab (for TTS)
 
 Just a simple table of stored seed values from the Narration tab.
+
+Double-click a voice or seed value to send that row to the Narration tab
+(same as "Copy to Narration"). Double-clicking an instruction or note edits it.
+Sort order and column widths are remembered.
 
 After editing a note or instruction, click "Save Table".
 - It's stored in the same file as the settings (settings.json).
@@ -317,8 +374,6 @@ Just a table of a few related ish settings
 
 ## Known limitations
 
-- Saving as mp3 might take a little while (a few seconds, depending on size),
-  during which time it will be unresponsive. Be patient :)
 - Unusual punctuation might cause issues (with speech rhytm, highlighting).
    (Though most(?) of this should be fixed now).
 - This is justa wrapper for KoboldCpp's TTS and STT API's.
