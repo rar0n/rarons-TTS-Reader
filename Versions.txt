@@ -1,6 +1,14 @@
 Unneccesarily detailed dev-run history procrastinations (Via Vibe coding with Claude)
 -----------------------------------------------------------------------------------------------------------------
 
+- 2026.11.07 - Date-based versions from now on (a ".2" etc. suffix if several
+                 releases the same day).
+                 Seed Vault: remembers sort order and column widths, double-click
+                 a voice/seed to send it to TTS.
+                 TTS: render time left ignores the first chunk, optional
+                 auto-save of subtitles with audio (TTS Settings), save runs
+                 in the background with a red progress bar, mp3 is default.
+                 README: Windows install instructions.
 - 2026.07.16 - v0.72 - Tweaking, some experimental settings for STT.
 - 2026.07.15 - v0.70 - STT added! (Thanks again to Claude! Awesome guy)
 - 2026.07.11 - v0.64 - Save as subtitle (.srt) added! (Thanks again, Claude!)
