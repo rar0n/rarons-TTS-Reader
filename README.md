@@ -428,5 +428,15 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
 ## Version history
 (Removed unnecessary Dev procrastination versions)
 
+- 2026.11.07
+             - Date-based versions from now on.
+             - Seed Vault remembers sort order and column widths; double-click a
+               voice or seed to send it to the TTS tab.
+             - Optional auto-save of subtitles along with audio (TTS Settings).
+             - Saving audio runs in the background with a (red) progress bar.
+             - MP3 is the default save format.
+             - Render time left ignores the first chunk.
+             - Windows install instructions.
+
 - 2026.07.15 - v0.70
              - STT added!
