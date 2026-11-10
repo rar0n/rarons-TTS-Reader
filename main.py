@@ -15,9 +15,12 @@ from tts_seed_vault_tab import SeedVaultTab
 from tts_narration_tab import NarrationTab
 from stt_transcription_tab import STTTab
 from stt_settings_tab import STTSettingsTab
+from program_settings_tab import ProgramSettingsTab
+from about_tab import AboutTab
+from ui_common import DEFAULT_SETTINGS_PATH, apply_theme, load_json_dict
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader 2026.11.07"
+_PROGRAMTITLE = "raron's TTS Reader 2026.11.10"
 
 
 class MainWindow(QMainWindow):
@@ -35,6 +38,7 @@ class MainWindow(QMainWindow):
 
         self.tts_narration_tab = NarrationTab(self.tts_settings_tab, self.tts_seed_vault_tab)
         self.stt_settings_tab = STTSettingsTab()
+        self.program_settings_tab = ProgramSettingsTab()
         self.stt_transcription_tab = STTTab(self.tts_settings_tab, self.stt_settings_tab)
 
         tabs.addTab(self.tts_narration_tab, "TTS (Narration)")
@@ -42,6 +46,8 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.tts_seed_vault_tab, "Seed Vault")
         tabs.addTab(self.tts_settings_tab, "TTS Settings")
         tabs.addTab(self.stt_settings_tab, "STT Settings")
+        tabs.addTab(self.program_settings_tab, "Program Settings")
+        tabs.addTab(AboutTab(_PROGRAMTITLE), "About")
 
     def closeEvent(self, event):
         self.tts_narration_tab.shutdown()
@@ -85,6 +91,9 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
 def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(_SCROLLBAR_QSS)
+    # Apply the saved theme before any widgets exist, so the window doesn't
+    # open in one theme and flip to the other.
+    apply_theme(load_json_dict(DEFAULT_SETTINGS_PATH).get("THEME", "Light"))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

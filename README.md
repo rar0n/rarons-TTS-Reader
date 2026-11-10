@@ -241,11 +241,12 @@ Just a simple table of stored seed values from the Narration tab.
 Double-click a voice or seed value to send that row to the Narration tab
 (same as "Copy to Narration"). Double-clicking an instruction or note edits it.
 Sort order and column widths are remembered.
+The buttons at the bottom sit where the Save / Load / Reset buttons are on the Settings tabs (Save Settings, Remove Row, Copy to Narration).
 
-After editing a note or instruction, click "Save Table".
+After editing a note or instruction, click "Save Settings".
 - It's stored in the same file as the settings (settings.json).
 - If you mess up and want to revert to the last saved settings, go to
-  Settings tab and reload settings (don't click "Save Table" first then...).
+  Settings tab and reload settings (don't click "Save Settings" first then...).
 
 
 
@@ -370,6 +371,12 @@ Just a table of a few related ish settings
 - WPM is an approximately speech speed setting. It's only use is to calculate approximate speech duration if the "Subtitle start adjustment" above is on, to determine roughly if a chunk has less spoken words than there's time for. In which case, it's assumed the speech starts later in the auido chunk (which isn't given, and no way to tell), and it's delayed. Unless it's the last chunk, in which case it just ends earler.
 
 
+### Program Settings tab
+
+Settings for the program itself, same Save / Load / Reset buttons as the other Settings tabs.
+- Theme: Light (default, the system's native look) or Dark. Applied immediately, click "Save Settings" to keep it for the next start.
+
+
 
 
 ## Known limitations
@@ -428,6 +435,13 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
 ## Version history
 (Removed unnecessary Dev procrastination versions)
 
+- 2026.11.10
+             - Fix: STT crashed on startup with Python 3.13+ (the stdlib "audioop"
+               module was removed). Silence detection now uses numpy.
+             - New "Program Settings" tab with a Light / Dark theme setting.
+             - Save / Load / Reset buttons now look the same on all Settings tabs.
+             - Seed Vault: hint when empty, bottom buttons aligned with the Settings tabs.
+             - New "About" tab.
 - 2026.11.07
              - Date-based versions from now on.
              - Seed Vault remembers sort order and column widths; double-click a

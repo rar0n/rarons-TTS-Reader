@@ -112,7 +112,7 @@ class STTSettingsTab(QWidget):
         scan_form = QFormLayout(scan_group)
 
         self.vad_type_combo = QComboBox()
-        self.vad_type_combo.addItem("RMS (stdlib audioop)")
+        self.vad_type_combo.addItem("RMS (numpy)")
         self.vad_type_combo.setMaximumWidth(220)
         self.vad_type_combo.setToolTip(
             "Only one VAD (Voice Activation Detection) implementation for now..."
@@ -312,9 +312,9 @@ class STTSettingsTab(QWidget):
         self.save_btn.clicked.connect(self._on_save_clicked)
         self.load_btn.clicked.connect(self._on_load_clicked)
         self.reset_btn.clicked.connect(self._on_reset_clicked)
-        btn_row.addWidget(self.save_btn)
-        btn_row.addWidget(self.load_btn)
-        btn_row.addWidget(self.reset_btn)
+        btn_row.addWidget(self.save_btn, 1)
+        btn_row.addWidget(self.load_btn, 1)
+        btn_row.addWidget(self.reset_btn, 1)
         page_outer.addLayout(btn_row)
 
         self.settings_status = ElidingLabel("")
@@ -334,7 +334,7 @@ class STTSettingsTab(QWidget):
     def _factory_scan_defaults() -> dict:
         c = ChunkerConfig()
         return {
-            "vad_type": "RMS (stdlib audioop)",
+            "vad_type": "RMS (numpy)",
             "amplitude_threshold": c.amplitude_threshold,
             "analysis_window_ms": c.analysis_window_ms,
             "min_gap_ms": c.min_gap_ms,

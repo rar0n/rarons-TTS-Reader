@@ -13,7 +13,8 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QLabel, QTextEdit, QSizePolicy
+from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QApplication, QLabel, QTextEdit, QSizePolicy
 
 # Where every tab's settings get saved to / auto-loaded from on startup.
 # Each tab merges its own keys into this same file via _save_json_merged
@@ -30,6 +31,7 @@ STATUS_STYLE_NARRATION = "background-color: #223655; color: white; padding: 4px;
 STATUS_STYLE_SEED_VAULT = "background-color: #2b3f2e; color: white; padding: 4px;"
 STATUS_STYLE_SETTINGS = "background-color: #4a2c2c; color: white; padding: 4px;"
 STATUS_STYLE_STT = "background-color: #4a3f5e; color: white; padding: 4px;"
+STATUS_STYLE_PROGRAM = "background-color: #2c4a4a; color: white; padding: 4px;"
 STATUS_STYLE_ERROR = "background-color: #8b0000; color: white; padding: 4px;"
 
 # Shared desaturated/darkened RGB (and amber) palette for buttons across all tabs.
@@ -90,6 +92,73 @@ def progress_style(background: str, chunk_color: str) -> str:
         f"border: none; padding: 1px; text-align: center; }}"
         f"QProgressBar::chunk {{ background-color: {chunk_color}; }}"
     )
+
+
+# ---- theme -------------------------------------------------------------
+
+THEMES = ["Light", "Dark"]
+DEFAULT_THEME = "Light"
+
+# Remembered the first time apply_theme runs, so "Light" can hand back the
+# platform's own native style + palette (exactly what the app looked like
+# before themes existed) instead of a Fusion imitation of it.
+_native_style_name = None
+_current_theme = None
+
+
+def current_theme() -> str | None:
+    return _current_theme
+
+
+def _dark_palette() -> QPalette:
+    pal = QPalette()
+    window = QColor(45, 45, 45)
+    base = QColor(30, 30, 30)
+    text = QColor(225, 225, 225)
+    disabled_text = QColor(120, 120, 120)
+    highlight = QColor(58, 96, 150)
+    pal.setColor(QPalette.Window, window)
+    pal.setColor(QPalette.WindowText, text)
+    pal.setColor(QPalette.Base, base)
+    pal.setColor(QPalette.AlternateBase, QColor(40, 40, 40))
+    pal.setColor(QPalette.ToolTipBase, QColor(60, 60, 60))
+    pal.setColor(QPalette.ToolTipText, text)
+    pal.setColor(QPalette.Text, text)
+    pal.setColor(QPalette.PlaceholderText, QColor(140, 140, 140))
+    pal.setColor(QPalette.Button, QColor(58, 58, 58))
+    pal.setColor(QPalette.ButtonText, text)
+    pal.setColor(QPalette.BrightText, QColor(255, 80, 80))
+    pal.setColor(QPalette.Link, QColor(110, 170, 240))
+    pal.setColor(QPalette.Highlight, highlight)
+    pal.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+    for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
+        pal.setColor(QPalette.Disabled, role, disabled_text)
+    return pal
+
+
+def apply_theme(theme: str):
+    """Switches the whole application between the platform's native
+    ("Light") look and a Fusion-based dark palette. Safe to call at any
+    time, also while windows are already showing -- Qt repolishes them."""
+    global _native_style_name, _current_theme
+    app = QApplication.instance()
+    if app is None:
+        return
+    if theme not in THEMES:
+        theme = DEFAULT_THEME
+    if _native_style_name is None:
+        _native_style_name = app.style().objectName()
+    if theme == "Dark":
+        app.setStyle("Fusion")
+        app.setPalette(_dark_palette())
+    else:
+        app.setStyle(_native_style_name)
+        app.setPalette(app.style().standardPalette())
+    # With an application-wide stylesheet active (main.py's scrollbar QSS),
+    # widgets that already exist ignore a palette change until the
+    # stylesheet is re-applied -- this forces them to repolish.
+    app.setStyleSheet(app.styleSheet())
+    _current_theme = theme
 
 
 # ---- formatting helpers ---------------------------------------------------

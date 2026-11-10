@@ -6,9 +6,10 @@ notes) rows, saved into the shared settings.json under "SEED_VAULT".
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QTableWidget,
-    QTableWidgetItem, QAbstractItemView, QPushButton,
+    QTableWidgetItem, QAbstractItemView, QPushButton, QLabel,
 )
 
 from ui_common import (
@@ -85,10 +86,33 @@ class SeedVaultTab(QWidget):
         self.table.horizontalHeader().setSortIndicatorShown(True)
         layout.addWidget(self.table)
 
+        # Centered hint shown over the table's body while it has no rows.
+        # A child of the viewport (not a layout item), kept in place by
+        # _update_empty_hint on resize and whenever rows come or go.
+        self.empty_hint = QLabel(
+            "The Seed Vault is empty.\n\n"
+            "Pick a voice and seed in the TTS (Narration) tab and click\n"
+            "\"Store seed\" there to add a row here.",
+            self.table.viewport(),
+        )
+        self.empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.empty_hint.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+        self.table.resized.connect(self._update_empty_hint)
+        model = self.table.model()
+        model.rowsInserted.connect(self._update_empty_hint)
+        model.rowsRemoved.connect(self._update_empty_hint)
+        model.modelReset.connect(self._update_empty_hint)
+        self._update_empty_hint()
+
+        # Same three-button row, order, widths and position as the Save /
+        # Load / Reset row on the TTS, STT and Program Settings tabs:
+        # left = Save Settings, middle = Remove Row (where Load sits),
+        # right = Copy to Narration (where Reset sits).
         btn_row = QHBoxLayout()
-        self.remove_row_btn = QPushButton("🗑 Remove row")
+        self.save_btn = QPushButton("💾 Save Settings")
+        self.remove_row_btn = QPushButton("🗑 Remove Row")
         self.copy_to_reader_btn = QPushButton("Copy to Narration")
-        self.save_btn = QPushButton("💾 Save Table")
         self.remove_row_btn.setStyleSheet(btn_style(COLOR_DARK_RED))
         self.copy_to_reader_btn.setStyleSheet(btn_style(COLOR_DARK_BLUE))
         self.save_btn.setStyleSheet(btn_style(COLOR_DARK_GREEN))
@@ -97,16 +121,21 @@ class SeedVaultTab(QWidget):
         self.remove_row_btn.clicked.connect(self._on_remove_row_clicked)
         self.copy_to_reader_btn.clicked.connect(self._on_copy_to_reader_clicked)
         self.save_btn.clicked.connect(self._on_save_clicked)
-        btn_row.addWidget(self.remove_row_btn)
-        btn_row.addStretch(1)
-        btn_row.addWidget(self.save_btn)
-        btn_row.addStretch(1)
-        btn_row.addWidget(self.copy_to_reader_btn)
+        btn_row.addWidget(self.save_btn, 1)
+        btn_row.addWidget(self.remove_row_btn, 1)
+        btn_row.addWidget(self.copy_to_reader_btn, 1)
         layout.addLayout(btn_row)
 
         self.status_label = ElidingLabel("")
         self.status_label.setStyleSheet(STATUS_STYLE_SEED_VAULT)
         layout.addWidget(self.status_label)
+
+    def _update_empty_hint(self, *_args):
+        empty = self.table.rowCount() == 0
+        self.empty_hint.setVisible(empty)
+        if empty:
+            self.empty_hint.setGeometry(self.table.viewport().rect())
+            self.empty_hint.raise_()
 
     # ---- row management -----------------------------------------------------
 
@@ -203,6 +232,7 @@ class SeedVaultTab(QWidget):
         seed = self.table.item(row, 1).text() if self.table.item(row, 1) else ""
         instruction = self.table.item(row, 2).text() if self.table.item(row, 2) else ""
         self.seed_requested.emit(voice, seed, instruction)
+        self.status_label.setText(f"Copied voice {voice or '(none)'} with seed {seed} to Narration tab")
 
     # ---- save / load ----------------------------------------------------------
 
@@ -259,7 +289,7 @@ class SeedVaultTab(QWidget):
 
     def save_layout(self):
         """Saves just the sort order and column widths (not the rows),
-        so these stick between runs even without pressing "Save Table"
+        so these stick between runs even without pressing "Save Settings"
         -- the rows themselves stay manual-save so a bad edit can still
         be undone by reloading."""
         try:
@@ -270,7 +300,7 @@ class SeedVaultTab(QWidget):
     def save_to_disk(self) -> bool:
         """Overwrites settings.json's SEED_VAULT entry with the table's
         current contents. Public (no leading underscore) since the
-        "💾 Save Table" button below calls this -- the only place a row
+        "💾 Save Settings" button below calls this -- the only place a row
         actually gets persisted; adding a row via "Store seed" on the
         Narration tab only updates the table in memory."""
         try:

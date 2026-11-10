@@ -469,11 +469,11 @@ class NarrationTab(QWidget):
         instruction = self.instruction_edit.text().strip()
         # Only adds the row in memory -- doesn't touch disk, so an
         # accidental/bad store can still be undone by just removing the
-        # row (or reloading) before hitting "Save Table" on the Seed
+        # row (or reloading) before hitting "Save Settings" on the Seed
         # Vault tab.
         self.seed_vault_tab.add_row(voice, seed, instruction, "")
         self.status_label.setText(
-            f"Stored seed {seed} ({voice}) in Seed Vault -- click Save Table to keep it"
+            f"Stored seed {seed} ({voice}) in Seed Vault -- click Save Settings (Seed Vault tab) to keep it"
         )
 
     def _on_seed_requested_from_vault(self, voice: str, seed: str, instruction: str = ""):

@@ -1,6 +1,11 @@
 Unneccesarily detailed dev-run history procrastinations (Via Vibe coding with Claude)
 -----------------------------------------------------------------------------------------------------------------
 
+- 2026.11.10 - STT: replaced audioop (gone in Python 3.13) with numpy.
+                 Program Settings tab with Light / Dark theme.
+                 Same button colors on all Settings tabs.
+                 Seed Vault: empty-table hint, buttons aligned with Settings tabs.
+                 About tab.
 - 2026.11.07 - Date-based versions from now on (a ".2" etc. suffix if several
                  releases the same day).
                  Seed Vault: remembers sort order and column widths, double-click

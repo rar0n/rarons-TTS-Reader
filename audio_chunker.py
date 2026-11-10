@@ -1,6 +1,6 @@
 """
 Splits a WAV file into Whisper-sized chunks at silence boundaries, using
-plain stdlib RMS-based silence detection (audioop + wave). No Qt, no
+plain RMS-based silence detection (numpy + wave). No Qt, no
 network calls -- this module only knows about audio in and (offsets,
 WAV bytes) out, so it can be developed and tested against a saved file
 before it's ever wired into the STT tab.
@@ -32,12 +32,35 @@ after hard gaps are removed):
    wait for a natural break.
 """
 
-import audioop
 import io
 import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
+
+import numpy as np
+
+
+def _rms(frames: bytes, sampwidth: int) -> int:
+    """Drop-in for audioop.rms (audioop was removed in Python 3.13).
+    RMS over all interleaved samples, treated as signed little-endian ints
+    (8-bit is treated as signed too, matching audioop)."""
+    if sampwidth == 1:
+        a = np.frombuffer(frames, dtype=np.int8)
+    elif sampwidth == 2:
+        a = np.frombuffer(frames, dtype='<i2')
+    elif sampwidth == 3:
+        b = np.frombuffer(frames, dtype=np.uint8)
+        b = b[: len(b) // 3 * 3].reshape(-1, 3).astype(np.int32)
+        a = b[:, 0] | (b[:, 1] << 8) | (b[:, 2] << 16)
+        a = np.where(a & 0x800000, a - 0x1000000, a)
+    elif sampwidth == 4:
+        a = np.frombuffer(frames, dtype='<i4')
+    else:
+        raise ValueError(f"unsupported sample width: {sampwidth}")
+    if a.size == 0:
+        return 0
+    return int(np.sqrt(np.mean(a.astype(np.float64) ** 2)))
 
 
 # ---- configuration ---------------------------------------------------
@@ -45,7 +68,7 @@ from typing import List, Optional
 @dataclass
 class ChunkerConfig:
     # VAD -- only one implementation for now (this module IS the "RMS
-    # (stdlib audioop)" VAD type); a `vad_type` string field would live
+    # (numpy)" VAD type); a `vad_type` string field would live
     # on the settings tab / a dispatch layer above this, not here.
 
     # Raw RMS threshold. For 16-bit PCM, RMS ranges roughly 0-32767.
@@ -157,7 +180,7 @@ def iter_gaps(source, config: ChunkerConfig):
 
             window_start_s = pos_frames / framerate
             window_end_s = (pos_frames + n_frames_read) / framerate
-            rms = audioop.rms(frames, sampwidth)
+            rms = _rms(frames, sampwidth)
 
             if rms < config.amplitude_threshold:
                 if run_start is None:
