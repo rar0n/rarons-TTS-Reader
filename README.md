@@ -442,6 +442,10 @@ Contact: Atm only on the [TTS Reader's github page](https://github.com/rar0n/rar
              - Save / Load / Reset buttons now look the same on all Settings tabs.
              - Seed Vault: hint when empty, bottom buttons aligned with the Settings tabs.
              - New "About" tab.
+- 2026.11.10
+             - STT: "Add to Speaker Presets" button and WPM label right-aligned,
+               WPM tooltip split over several lines.
+
 - 2026.11.07
              - Date-based versions from now on.
              - Seed Vault remembers sort order and column widths; double-click a

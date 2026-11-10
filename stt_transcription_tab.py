@@ -266,20 +266,26 @@ class STTTab(QWidget):
         self.save_srt_btn.clicked.connect(self._on_save_srt_clicked)
         btn_row.addWidget(self.save_srt_btn)
 
+        # Everything from here on sits at the right edge of the row.
+        btn_row.addStretch(1)
+
         self.wpm_label = QLabel("WPM: --")
         self.wpm_label.setStyleSheet(STATUS_STYLE_STT)
         self.wpm_label.setToolTip(
-            "Observed speaking rate, computed live from each chunk's "
-            "transcribed text and measured audio duration as transcription "
-            "runs -- bracketed non-speech tags like [music] or "
-            "[BLANK_AUDIO] are stripped before counting words. \"WPM\" is "
-            "the most recent chunk; avg is total words over total chunk "
-            "duration so far. Use this to help tune the Speech rate (wpm) "
-            "column on the STT Settings tab."
+            "Observed speaking rate, computed live from each chunk's\n"
+            "transcribed text and measured audio duration as transcription\n"
+            "runs. Bracketed non-speech tags like [music] or [BLANK_AUDIO]\n"
+            "are stripped before counting words.\n"
+            "\n"
+            "\"WPM\" is the most recent chunk; avg is total words over\n"
+            "total chunk duration so far.\n"
+            "\n"
+            "Use this to help tune the Speech rate (wpm) column on the\n"
+            "STT Settings tab."
         )
         btn_row.addWidget(self.wpm_label)
 
-        self.add_preset_btn = QPushButton("Add to Preset Table")
+        self.add_preset_btn = QPushButton("Add to Speaker Presets")
         self.add_preset_btn.setStyleSheet(btn_style(COLOR_DARK_GREEN))
         self.add_preset_btn.setFixedHeight(STANDARD_BTN_HEIGHT)
         self.add_preset_btn.setEnabled(False)
@@ -292,7 +298,6 @@ class STTTab(QWidget):
         self.add_preset_btn.clicked.connect(self._on_add_preset_clicked)
         btn_row.addWidget(self.add_preset_btn)
 
-        btn_row.addStretch(1)
         outer.addLayout(btn_row)
 
         progress_row = QHBoxLayout()

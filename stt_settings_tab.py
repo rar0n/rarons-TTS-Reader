@@ -521,7 +521,7 @@ class STTSettingsTab(QWidget):
 
     def add_preset_row(self, preset: dict) -> int:
         """Public entry point for other tabs to add a row from externally-
-        known values -- currently used by STTTab's "Add to Preset Table"
+        known values -- currently used by STTTab's "Add to Speaker Presets"
         button, which passes the currently active chunker config plus a
         live-observed WPM. Selects and scrolls to the new row so it's
         obvious something happened. Returns the new row's stable id."""
