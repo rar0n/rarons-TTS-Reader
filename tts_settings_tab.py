@@ -161,7 +161,45 @@ class SettingsTab(QWidget):
         )
         self.min_chars_spin.valueChanged.connect(self._on_field_changed)
         chunk_form.addRow("Min chunk chars:", self.min_chars_spin)
-        layout.addWidget(chunk_group, 1, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
+
+        # -- Additional chunk rules (optional, off by default) --
+        rules_group = QGroupBox("Additional chunk rules")
+        rules_form = QFormLayout(rules_group)
+        rules_form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
+        self.split_at_newline_checkbox = QCheckBox("Split chunk at newline")
+        self.split_at_newline_checkbox.setToolTip(
+            "Ends a chunk at every single newline that isn't already preceded by punctuation,\n"
+            "using the \"Period\" pause. Helps when a line without punctuation gets run\n"
+            "together with the next one (titles, list items, verse) and is spoken too fast.\n"
+            "For hard-wrapped text (newline every ~70 characters, mid-sentence), also\n"
+            "enable \"Only split if next line starts Capitalized\"."
+        )
+        self.split_at_newline_checkbox.stateChanged.connect(self._on_field_changed)
+        rules_form.addRow(self.split_at_newline_checkbox)
+
+        self.split_capitalized_checkbox = QCheckBox("Only split if next line starts Capitalized")
+        self.split_capitalized_checkbox.setToolTip(
+            "Only splits at a newline if the next line starts with a capital letter\n"
+            "(leading spaces and opening quotes/brackets are ignored). A next line starting\n"
+            "with a lowercase letter, digit or symbol is treated as a continuation."
+        )
+        self.split_capitalized_checkbox.stateChanged.connect(self._on_field_changed)
+        # Indented below the option it depends on.
+        sub_row = QHBoxLayout()
+        sub_row.setContentsMargins(20, 0, 0, 0)
+        sub_row.addWidget(self.split_capitalized_checkbox)
+        rules_form.addRow(sub_row)
+        self.split_at_newline_checkbox.toggled.connect(self._sync_split_newline_dependents_enabled)
+        self._sync_split_newline_dependents_enabled(self.split_at_newline_checkbox.isChecked())
+
+        # Chunk sizing and Additional chunk rules share the top-right cell
+        # (rowspan 2, with Abbreviations below them), so the new group sits
+        # directly below Chunk sizing without disturbing the left column.
+        right_col = QWidget()
+        right_layout = QVBoxLayout(right_col)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(chunk_group)
+        right_layout.addWidget(rules_group)
 
         # -- Abbreviations --
         abbrev_group = QGroupBox("Abbreviations (not treated as sentence-enders)")
@@ -171,7 +209,9 @@ class SettingsTab(QWidget):
         self.abbrev_edit.setFixedHeight(295)
         self.abbrev_edit.textChanged.connect(self._on_field_changed)
         abbrev_layout.addWidget(self.abbrev_edit)
-        layout.addWidget(abbrev_group, 2, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
+        right_layout.addWidget(abbrev_group)
+        right_layout.addStretch(1)
+        layout.addWidget(right_col, 1, 1, 2, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
 
         # -- Scrolling --
         scroll_group = QGroupBox("Scrolling")
@@ -245,6 +285,8 @@ class SettingsTab(QWidget):
             **other,
             "LONG_CHUNK_WORD_LIMIT": self.long_chunk_spin.value(),
             "MIN_CHUNK_CHARS": self.min_chars_spin.value(),
+            "SPLIT_AT_NEWLINE": self.split_at_newline_checkbox.isChecked(),
+            "SPLIT_AT_NEWLINE_CAPITALIZED_ONLY": self.split_capitalized_checkbox.isChecked(),
             "ABBREVIATIONS": sorted(abbrevs),
             "HIGHLIGHT_MARGIN_ENABLED": self.highlight_margin_checkbox.isChecked(),
             "SCROLL_DENOMINATOR": self.scroll_denominator_spin.value(),
@@ -273,6 +315,10 @@ class SettingsTab(QWidget):
             tts_chunker.LONG_CHUNK_WORD_LIMIT = settings["LONG_CHUNK_WORD_LIMIT"]
         if "MIN_CHUNK_CHARS" in settings:
             tts_chunker.MIN_CHUNK_CHARS = settings["MIN_CHUNK_CHARS"]
+        if "SPLIT_AT_NEWLINE" in settings:
+            tts_chunker.SPLIT_AT_NEWLINE = bool(settings["SPLIT_AT_NEWLINE"])
+        if "SPLIT_AT_NEWLINE_CAPITALIZED_ONLY" in settings:
+            tts_chunker.SPLIT_AT_NEWLINE_CAPITALIZED_ONLY = bool(settings["SPLIT_AT_NEWLINE_CAPITALIZED_ONLY"])
         if "ABBREVIATIONS" in settings:
             tts_chunker.ABBREVIATIONS = set(settings["ABBREVIATIONS"])
 
@@ -295,6 +341,11 @@ class SettingsTab(QWidget):
             self.long_chunk_spin.setValue(int(settings["LONG_CHUNK_WORD_LIMIT"]))
         if "MIN_CHUNK_CHARS" in settings:
             self.min_chars_spin.setValue(int(settings["MIN_CHUNK_CHARS"]))
+        if "SPLIT_AT_NEWLINE" in settings:
+            self.split_at_newline_checkbox.setChecked(bool(settings["SPLIT_AT_NEWLINE"]))
+        if "SPLIT_AT_NEWLINE_CAPITALIZED_ONLY" in settings:
+            self.split_capitalized_checkbox.setChecked(bool(settings["SPLIT_AT_NEWLINE_CAPITALIZED_ONLY"]))
+        self._sync_split_newline_dependents_enabled(self.split_at_newline_checkbox.isChecked())
         if "ABBREVIATIONS" in settings:
             self.abbrev_edit.setPlainText("\n".join(sorted(settings["ABBREVIATIONS"])))
         if "HIGHLIGHT_MARGIN_ENABLED" in settings:
@@ -321,6 +372,8 @@ class SettingsTab(QWidget):
             "PAUSE_MAP": dict(tts_chunker.PAUSE_MAP),
             "LONG_CHUNK_WORD_LIMIT": tts_chunker.LONG_CHUNK_WORD_LIMIT,
             "MIN_CHUNK_CHARS": tts_chunker.MIN_CHUNK_CHARS,
+            "SPLIT_AT_NEWLINE": tts_chunker.SPLIT_AT_NEWLINE,
+            "SPLIT_AT_NEWLINE_CAPITALIZED_ONLY": tts_chunker.SPLIT_AT_NEWLINE_CAPITALIZED_ONLY,
             "ABBREVIATIONS": sorted(tts_chunker.ABBREVIATIONS),
             "HIGHLIGHT_MARGIN_ENABLED": False,
             "SCROLL_DENOMINATOR": 4,
@@ -342,6 +395,11 @@ class SettingsTab(QWidget):
         otherwise instead of leaving them editable but inert."""
         self.scroll_denominator_spin.setEnabled(checked)
         self.clamp_highlight_checkbox.setEnabled(checked)
+
+    def _sync_split_newline_dependents_enabled(self, checked: bool):
+        """"Only split if next line starts Capitalized" only means anything
+        while "Split chunk at newline" is on -- grey it out otherwise."""
+        self.split_capitalized_checkbox.setEnabled(checked)
 
     # ---- save / load / reset -----------------------------------------------
 

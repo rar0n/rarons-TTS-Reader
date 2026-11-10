@@ -40,6 +40,33 @@ MIN_CHUNK_CHARS = 12
 LONG_CHUNK_WORD_LIMIT = 100
 FORCED_SPLIT_PAUSE_MS = 0 # Was 80. Probably better as 0.
 
+# Optional extra chunk rule ("Additional chunk rules" in TTS Settings): when
+# True, a single newline in the middle of a chunk closes that chunk (with the
+# "." pause from PAUSE_MAP, i.e. treated like a sentence end) instead of just
+# being folded into a word-space. Helps with lines that have no punctuation
+# before the newline (titles, list items, verse, ...), which otherwise get
+# glued onto the next line and can be rushed by the TTS engine. Off by
+# default, since hard-wrapped plain text (a newline every ~70 characters,
+# mid-sentence) would get chopped up by it.
+SPLIT_AT_NEWLINE = False
+
+# Sub-option of SPLIT_AT_NEWLINE (ignored if that is off): only split when
+# the next line starts with a capital letter (leading spaces/tabs and opening
+# quotes/brackets are skipped). A next line starting lowercase, with a digit
+# or a symbol is treated as a continuation, which keeps hard-wrapped
+# sentences intact.
+SPLIT_AT_NEWLINE_CAPITALIZED_ONLY = False
+_NEWLINE_SKIP_CHARS = " \t\"'([{“‘«¿¡"
+
+
+def _next_line_starts_capitalized(text: str, pos: int) -> bool:
+    """True if the first real character at/after `pos` (skipping spaces,
+    tabs and opening quotes/brackets) is an uppercase letter."""
+    n = len(text)
+    while pos < n and text[pos] in _NEWLINE_SKIP_CHARS:
+        pos += 1
+    return pos < n and text[pos].isupper()
+
 # Common abbreviations that end in a period but aren't actually sentence
 # boundaries -- without this, "Dr." or "e.g." gets read as a full stop.
 ABBREVIATIONS = {
@@ -71,6 +98,28 @@ _EMOJI_CLASS = (
     r"\u25A0-\u25FF"          # geometric shapes (e.g. \u25BA \u25CF)
     r"\u2600-\u27BF"          # misc symbols & dingbats
     r"\u2B00-\u2BFF"          # misc symbols & arrows
+)
+
+# Characters that make up ASCII-art style section dividers ("----", "====",
+# "* * *", "- - - -", "-- -- --", "+-+-+", box-drawing lines, ...) and mean
+# nothing when spoken -- the TTS engine would otherwise read e.g. "- - - -" as
+# "minus minus minus minus". See the "divider" alternative in _TOKEN_RE.
+_DIVIDER_CHARS = (
+    r"\-_=*~#+^|"
+    r"─-▟"                        # box drawing + block elements
+    r"•·●○■□"  # bullets / squares / circles
+    r"▪▫◆◇★☆"  # small squares, diamonds, stars
+)
+# Minimum number of divider characters in one run (spaces/tabs between them
+# don't count). Below this, e.g. a lone "-" or a "- -" aside, it's left alone.
+_DIVIDER_MIN_MARKS = 3
+# A run of divider characters, optionally separated by spaces/tabs, that
+# stands on its own: preceded by whitespace/start of text and followed by
+# whitespace/end of text. The isolation requirement keeps it from eating
+# marks that are part of real text ("f***ing", "a=b", "C++", "--->").
+# Non-capturing groups only, so `m.lastgroup` still names the outer group.
+_DIVIDER_RE = (
+    rf"(?<!\S)[{_DIVIDER_CHARS}](?:[ \t]*[{_DIVIDER_CHARS}]){{{_DIVIDER_MIN_MARKS - 1},}}(?!\S)"
 )
 
 # Tokenizes the source text into: paragraph breaks, soft-hyphen line-wrap
@@ -126,6 +175,7 @@ _TOKEN_RE = re.compile(
     # this also catches double-underscore code identifiers like
     # "__init__"/"__all__" -- an accepted tradeoff for treating "_" the
     # same as "-".
+    rf"|(?P<divider>{_DIVIDER_RE})"
     r"|(?P<dashrun>[-_]{2,})"
     # A run of ordinary characters -- but each step first checks it isn't
     # about to walk into a "-\n<word char>" wrap (left for hyphenjoin), the
@@ -135,7 +185,12 @@ _TOKEN_RE = re.compile(
     # swallowed straight through the leading digit before the tokenizer's
     # scan position ever reached it, and number would never get a turn),
     # or the start of a 2+ hyphen/underscore run (left for dashrun above).
-    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)(?!\d+(?:[.,]+\d+)+)(?![-_]{2,})[^\n,;:.!?\u2014\u2013])+)"
+    # (The divider check is the same pattern as the `divider` alternative
+    # above, so a spaced divider in the middle of a line, "foo - - - bar",
+    # ends the word run before it instead of being swallowed into it.)
+    r"|(?P<word>(?:(?!-\n\w)(?!<?https?://)(?!\d+(?:[.,]+\d+)+)(?![-_]{2,})"
+    rf"(?!{_DIVIDER_RE})"
+    r"[^\n,;:.!?\u2014\u2013])+)"
 )
 
 
@@ -384,8 +439,9 @@ def _tokenize(text: str) -> List[Chunk]:
                 # paragraph-break pause.
                 chunks[-1].pause_ms = max(chunks[-1].pause_ms, PARAGRAPH_PAUSE_MS)
             pending_glue = ""
-        elif kind == "dashrun":
-            # A run of 2+ hyphens is a divider, not something to speak --
+        elif kind in ("dashrun", "divider"):
+            # A run of 2+ hyphens, or a divider like "- - - -" / "* * *" /
+            # "====" (see _DIVIDER_RE), is not something to speak --
             # same paragraph-level pause treatment as a blank-line break,
             # just without any text of its own to add to the builder.
             if not builder.is_empty():
@@ -397,7 +453,23 @@ def _tokenize(text: str) -> List[Chunk]:
         elif kind == "hyphenjoin":
             pending_glue = ""  # next word glues directly onto this one, no space
         elif kind == "linebreak":
-            pending_glue = " "  # a single newline just becomes a word-space
+            if (
+                SPLIT_AT_NEWLINE
+                and not builder.is_empty()
+                and (
+                    not SPLIT_AT_NEWLINE_CAPITALIZED_ONLY
+                    or _next_line_starts_capitalized(text, m.end())
+                )
+            ):
+                # Optional rule: the line ended without punctuation (a
+                # punctuated line end has already closed its chunk via
+                # flush_punct() above, leaving the builder empty), so close
+                # the chunk here with a sentence-end ("period") pause.
+                chunks.append(builder.build(PAUSE_MAP["."]))
+                builder = _Builder()
+                pending_glue = ""
+            else:
+                pending_glue = " "  # a single newline just becomes a word-space
         elif kind == "url":
             humanized = _humanize_url(m.group())
             if not humanized:

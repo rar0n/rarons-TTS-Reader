@@ -25,6 +25,9 @@ For TTS:
   - Live highligthing (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
   - Save audio as wav or mp3 (when it's finished rendering the TTS)
   - Better TTS handling of punctuations and numbers (100,000, 200,000, 3.1415 etc).
+  - Section dividers made of repeated characters ("----", "====", "* * *", "- - - -",
+    "-- -- --", "+-+-+", box-drawing lines, ...) and markdown "###" markers are not spoken,
+    they just become a pause. (Only when standing on their own, so "f***ing" and "C++" are untouched.)
   - Highlight margins, with optional auto scroll
     - (visible non-highlighted text around highlighted)
   - TTS seed value management (Rudimentary. Can reuse seeds)
@@ -310,6 +313,29 @@ Experiment!
   - How many words trigger a forced mid-sentence split
     for punctuation-free walls of text
   - Prevents "overloading" KoboldCpp.
+
+
+#### Additional chunk rules
+
+Optional rules, all off by default.
+
+- Split chunk at newline
+  - Ends the TTS chunk at every single newline that has no punctuation before it
+    (titles, list items, verse, ...), instead of joining it with the next line.
+    The line then gets the "Period" pause, like a sentence end.
+  - Helps if the TTS speaks a line too fast when it follows a newline without punctuation.
+  - On its own it's not for hard-wrapped text (a newline every ~70 characters, mid-sentence),
+    as it would chop sentences into pieces. See the next option.
+  - Blank lines (paragraph pause) and punctuation before the newline work as before.
+  - Since the pause counts as a sentence end, even short lines (like "Chapter 1") stay
+    separate, despite "Min chunk chars".
+- Only split if next line starts Capitalized (needs "Split chunk at newline")
+  - Only splits if the next line starts with a capital letter (leading spaces and
+    opening quotes / brackets are ignored). A next line starting with a lowercase
+    letter, digit or symbol is treated as a continuation, which keeps hard-wrapped
+    sentences intact.
+  - Not perfect: a wrapped line that happens to start with a name ("... and then
+    Dr. Aris said") will still be split, and a title followed by a lowercase line won't.
 
 
 #### Abbreviations list
