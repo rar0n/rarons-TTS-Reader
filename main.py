@@ -20,7 +20,7 @@ from about_tab import AboutTab
 from ui_common import DEFAULT_SETTINGS_PATH, apply_theme, load_json_dict
 
 # Titlebar info
-_PROGRAMTITLE = "raron's TTS Reader 2026.11.10"
+_PROGRAMTITLE = "raron's TTS Reader 2026.11.10.2"
 
 
 class MainWindow(QMainWindow):

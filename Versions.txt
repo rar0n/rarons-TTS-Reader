@@ -6,7 +6,7 @@ Unneccesarily detailed dev-run history procrastinations (Via Vibe coding with Cl
                  Same button colors on all Settings tabs.
                  Seed Vault: empty-table hint, buttons aligned with Settings tabs.
                  About tab.
-- 2026.11.10 - STT: "Add to Speaker Presets" button and WPM label right-aligned,
+- 2026.11.10.2 - STT: "Add to Speaker Presets" button and WPM label right-aligned,
                  WPM tooltip split over several lines.
 - 2026.11.07 - Date-based versions from now on (a ".2" etc. suffix if several
                  releases the same day).
