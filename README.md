@@ -421,14 +421,14 @@ Settings for the program itself, same Save / Load / Reset buttons as the other S
 
 
 
-## Known Issues
+## Known Issues / work arounds
 
-- There's no "continue from selection" function, for now just delete the
-  preceding text in the textbox if need be after a full stop.
+- **Stutter:** It's seldom but might happen. In which case **generate a new seed** with the same voice and try agian...
+- The "Dark" theme in Linux Mint is actually lighter than the light theme :P (will probably fix it later but no rush)
+- There's no "continue from selection" function, for now just delete the preceding text in the textbox if need be after a full stop.
 - (Linux Mint) You probaby will get a few warnings about ALSA underruns.
-  (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). Ignore it :)
-- Scrolling in any of the Settings tabs might inadvertedly change numeric
-  values if your mouse cursor hovers over a field while scrolling.
+  (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). **Ignore it** :)
+- Scrolling in any of the Settings tabs might inadvertently change numeric values if your mouse cursor hovers over a field while scrolling (Reload settings if that happens)
 
 
 ## License
