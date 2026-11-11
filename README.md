@@ -191,20 +191,20 @@ Details, details...
 
 Main tab for TTS
 - After a complete playthrough, if you want another version (even with the
-  same voice and text), click RND to make a new random seed value before Play.
+  same voice and text), click RND to make a new random seed value before Play
 - If you stop before rendering is finished, clicking Play again makes a new seed value
 - AFAIK, the "seed value" feature relies on an undocumented feature of KoboldCpp v1.116
-  API. No guarantee it'll work in later versions of KoboldCpp.
-  - Range seems to be from 0 to 2^31-1, or 0 to 2147483647.
+  API. No guarantee it'll work in later versions of KoboldCpp
+  - Range seems to be from 0 to 2^31-1, or 0 to 2147483647
   - Still works on koboldcpp-1.124.2
-- If you happen upon a seed value you'd like to keep, click "Store seed".
-  - It will be stored in the "Seed Vault" tab, along with voice and instructions.
-    - You can also make a note there, for your own reference.
-- If the "Lock" checkbox is checked, seed value can't change.
+- If you happen upon a seed value you'd like to keep, click **Store seed**, then **Save Settings**
+  - It will be stored in the "Seed Vault" tab, along with voice and instructions
+    - You can also make a note there, for your own reference
+- If the "Lock" checkbox is checked, seed value can't change
 - If deleting the voice field (or set as "Default"), KoboldCpp will just
-  pick a random speaker for each sentence. Might not be what you want.
-- Same-ish if you enter something in the "instructions" field:
-  - It overrides Voice setting (Not really to be used with QwenTTS base
+  pick a random speaker for each sentence. Might not be what you want
+- Same-ish if you enter something in the "instructions" field
+  - It overrides Voice setting (Not really meant to be used with QwenTTS base
     afaik).
 
 
