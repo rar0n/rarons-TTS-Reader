@@ -1,14 +1,13 @@
+# rarons TTS Reader - A TTS / STT wrapper using KoboldCpp
+
+- A work-around to read aloud or transcribe longer text by splitting it up in chunks
+- Now also with STT (Speech To Text) long-form transcription (TTS Reader is a bit of a misnomer now)
+
+
 <img width="1232" height="976" alt="image" src="https://github.com/user-attachments/assets/34bdeab8-d2fc-4f35-b26b-c483f4d6d0cd" />
 
-<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/33a0150b-a48a-4c60-891b-77f6a0a8d6fe" />
+<img width="820" height="648" alt="image" src="https://github.com/user-attachments/assets/da4f72c1-9a52-4e90-b0a2-b511012ae34d" />
 
-
-# rarons TTS Reader - Read long-form text aloud (KoboldCpp API)
-
-- Built to work around limited context memory for KoboldCpp
-    with long-form text generation and audio / video transcription.
-- Now also with STT (Speech To Text) long-form transcription
-    (TTS Reader is a bit of a misnomer now).
 
 
 ### Features
@@ -56,12 +55,13 @@ As I found KoboldCpp TTS flunked out on longer-form text  I vibe-coded this.
 (due to limited context memory as far as I understand it - KoboldCpp is still
 **awesome**!),
 I started usingClaude Sonnet 5 on Extra / High  and Medium effort, over now
-quite a few free sessions (Also awesome, so thanks to Anthropic for that!).
+quite a few free sessions* (Also awesome, so thanks to Anthropic for that!).
 
 Note: Most of the source code comments is Claude's. Some (not all) of the
       reasoning behind _why_ something is done is Claude's assumption and
       a bit off. But a lot is on-point as well!
 
+* Also touched up with Claude Code 5.5 Medium lately
 
     2026 Ragnar Aronsen (raron) ( But mostly Claude :) )
 
@@ -143,17 +143,18 @@ Requires Python 3.10 or newer. For STT of anything other than WAV files
 
 ## Usage:
 
-1. Run KoboldCpp, I suggest from a terminal / CLI (easier to exit by ctrl-C).
-2. In KoboldCpp, either load a previously saved config, or go to Audio tab (from the left panel vertical tabs), set:
+1. Run KoboldCpp. I suggest from a terminal / CLI (easier to exit by ctrl-C).
+    - Windows version opens its own command line, so just run it.
+3. In KoboldCpp, either load a previously saved config, or go to Audio tab (from the left panel vertical tabs), set:
     - "TTS model (Text-to-speech)"
     - "WavTokenizer model (Required for some models)"
     - "TTS Voice Dir" (only if you have custom voices, set folder/directory here)
     - Might also want to tick "Use GPU" if you have a suitable one.
-3. In KoboldCpp: Settings -> Media -> Text To Speech, select "OpenAI-Compat. API Server".
+4. In KoboldCpp: Settings -> Media -> Text To Speech, select "OpenAI-Compat. API Server".
     - (You may not need to, it seems to work regardless)
     - For simplicity later, save a KoboldCpp config. Reload on next use.
-4. Launch (KoboldCpp)
-5. Run TTS Reader by starting `main.py` from its folder, in a terminal.
+5. Click Launch (KoboldCpp)
+6. Run TTS Reader by starting `main.py` from its folder, in a terminal.
     Activate the venv first.
 
     Linux:
@@ -171,7 +172,7 @@ Requires Python 3.10 or newer. For STT of anything other than WAV files
     .\venv\Scripts\Activate.ps1
     python main.py
     ```
-6. Paste text (or drag'n'drop a text file - other files might have odd
+7. Paste text (or drag'n'drop a text file - other files might have odd
    formatting), check the KoboldCpp URL/voice fields, hit **▶ Play**
     It can take a few seconds before it starts reading the first time.
 
@@ -194,8 +195,8 @@ Main tab for TTS
 - If you stop before rendering is finished, clicking Play again makes a new seed value
 - AFAIK, the "seed value" feature relies on an undocumented feature of KoboldCpp v1.116
   API. No guarantee it'll work in later versions of KoboldCpp.
-  - Still works on KoboldCpp v.1.117
   - Range seems to be from 0 to 2^31-1, or 0 to 2147483647.
+  - Still works on koboldcpp-1.124.2
 - If you happen upon a seed value you'd like to keep, click "Store seed".
   - It will be stored in the "Seed Vault" tab, along with voice and instructions.
     - You can also make a note there, for your own reference.
