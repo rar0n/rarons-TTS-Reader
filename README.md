@@ -1,8 +1,7 @@
 # rarons TTS Reader - A TTS / STT wrapper using KoboldCpp
 
-- A work-around to read aloud or transcribe longer text by splitting it up in chunks
+- A work-around to read longer text aloud
 - Now also with STT (Speech To Text) long-form transcription (TTS Reader is a bit of a misnomer now)
-
 
 <img width="1232" height="976" alt="image" src="https://github.com/user-attachments/assets/34bdeab8-d2fc-4f35-b26b-c483f4d6d0cd" />
 
@@ -14,19 +13,25 @@
 
 Basically
 
-  - **Long text TTS**  - Text to Speech (Narration)
-    - Save  audio and / or subtitle (.srt)
-  - **Long media STT** - Speech to Text (Transcription)
-    - Save as plain-text or subtitle (.srt)
+- **Long text TTS**  - Text to Speech (Narration)
+  - Save  audio and / or subtitle (.srt)
+- **Long media STT** - Speech to Text (Transcription)
+  - Save as plain-text or subtitle (.srt)
 
-For TTS:
+This is just a wrapper for koboldCpp's TTS and STT API's
+- It depends entirely on KoboldCpp and its configuration
+- Only chunk preparation and pauses between chunks depends on this TTS Reader
+- It works by splitting up text or audio into shorter "chunks" sent to koboldCpp
+
+
+TTS:
   - Long text TTS via KoboldCpp TTS (Only tested 45ish minute so far)
   - Live highligthing (Per TTS chunk) while speaking and rendering TTS from KoboldCpp.
   - Save audio as wav or mp3 (when it's finished rendering the TTS)
   - Better TTS handling of punctuations and numbers (100,000, 200,000, 3.1415 etc).
   - Section dividers made of repeated characters ("----", "====", "* * *", "- - - -",
     "-- -- --", "+-+-+", box-drawing lines, ...) and markdown "###" markers are not spoken,
-    they just become a pause. (Only when standing on their own, so "f***ing" and "C++" are untouched.)
+    they just become a pause. (Only when standing on their own, so "f***ing" and "C++" are untouched)
   - Highlight margins, with optional auto scroll
     - (visible non-highlighted text around highlighted)
   - TTS seed value management (Rudimentary. Can reuse seeds)
@@ -37,7 +42,7 @@ For TTS:
       - Arrow left / right = Rewind / Forward
       - ESC = Stop, return to textbox.
 
-For STT:
+STT:
   - Long audio transcriptions. Also some video formats (tested 3 hour video).
   - Save as subtitle or plain-text
     - Some rudimentary plain-text formatting (newlines, basically)
@@ -406,30 +411,23 @@ Settings for the program itself, same Save / Load / Reset buttons as the other S
 
 
 
-## Known limitations
+## Known Issues / work arounds
 
-- Unusual punctuation might cause issues (with speech rhytm, highlighting).
-   (Though most(?) of this should be fixed now).
-- This is justa wrapper for KoboldCpp's TTS and STT API's.
-  - Function depends entirely on KoboldCpp and its configuration.
-  (Only between chunk pauses, chunk selection, and chunk preparation depends
-   on this TTS Reader).
+- **Stutter:** It's seldom but might happen. In which case **generate a new seed** with the same voice and try again...
+  - Unless chunk size is set too high, causing koboldCpp to run out of context memory (I think). in which case lower it.
+  - Likewise unusual punctuation might cause speech issues (speech rhytm / stutter, highlighting. Though most(?) of this should be fixed now).
+
+- The "Dark" theme in Linux Mint is actually lighter than the light theme :P (will probably fix it later but no rush)
+- There's no "continue from selection" function, for now just delete the preceding text in the textbox if need be after a full stop.
+- (Linux Mint) You probaby will get a few warnings about ALSA underruns.
+  (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). **Ignore it** :)
+- Scrolling in any of the Settings tabs might inadvertently change numeric values if your mouse cursor hovers over a field while scrolling (Reload settings if that happens)
 - One issue might be if your system renders speech slower than real-time,
   there will be longer pauses between sentences (TTS chunks sent to KoboldCpp).
   - You can just wait it out and save as wav or mp3 for later listen though.
     (just press Play, then again to Pause, wait, and save it).
 
 
-
-## Known Issues / work arounds
-
-- **Stutter:** It's seldom but might happen. In which case **generate a new seed** with the same voice and try again...
-  - Unless chunk size is set too high, causing koboldCpp to run out of context memory (I think). in which case lower it.
-- The "Dark" theme in Linux Mint is actually lighter than the light theme :P (will probably fix it later but no rush)
-- There's no "continue from selection" function, for now just delete the preceding text in the textbox if need be after a full stop.
-- (Linux Mint) You probaby will get a few warnings about ALSA underruns.
-  (ALSA lib pcm.c:8568:(snd_pcm_recover) underrun occurred). **Ignore it** :)
-- Scrolling in any of the Settings tabs might inadvertently change numeric values if your mouse cursor hovers over a field while scrolling (Reload settings if that happens)
 
 
 ## License
